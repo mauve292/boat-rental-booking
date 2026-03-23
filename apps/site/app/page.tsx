@@ -1,18 +1,20 @@
 import {
   boatAmenityLabels,
-  boats,
   formatCurrencyAmount,
   getBoatBookingHref,
   getPriceForBoatAndTripType,
   tripTypeLabels
 } from "@boat/domain";
+import { listBoats, listPriceRules } from "@boat/db";
 import { Pill, ShellCard } from "@boat/ui";
 
 const bookingAppBaseUrl =
   process.env.NEXT_PUBLIC_BOOKING_APP_URL ??
   (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "");
 
-export default function SitePage() {
+export default async function SitePage() {
+  const [boats, priceRules] = await Promise.all([listBoats(), listPriceRules()]);
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-16">
       <ShellCard
@@ -34,7 +36,11 @@ export default function SitePage() {
 
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {boats.map((boat) => {
-          const basePriceRule = getPriceForBoatAndTripType(boat.id, "half_day");
+          const basePriceRule = getPriceForBoatAndTripType(
+            boat.id,
+            "half_day",
+            priceRules
+          );
 
           return (
             <ShellCard

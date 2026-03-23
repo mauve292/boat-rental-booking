@@ -1,17 +1,14 @@
 import {
-  availabilityBlocks,
-  boats,
-  bookingQueryKeys,
   bookingSeason,
+  bookingQueryKeys,
   getBoatBookingHref,
   getPriceForBoatAndTripType,
-  getSlotBlockReason,
   getSupportedTripTypesForBoat,
   isDateWithinSeason,
   parseSelectedBoatFromSearchParams,
-  sampleBookings,
   tripTypeLabels
 } from "@boat/domain";
+import { getAvailabilitySnapshot, listBoats, listPriceRules } from "@boat/db";
 import type { SearchParamsRecord } from "@boat/types";
 import { Pill, ShellCard } from "@boat/ui";
 import { parseBoatQueryParam } from "@boat/validation";
@@ -27,13 +24,18 @@ export default async function BookingPage({
   searchParams
 }: BookingPageProps) {
   const resolvedSearchParams = await searchParams;
+  const [boats, priceRules] = await Promise.all([listBoats(), listPriceRules()]);
   const rawBoatSlug = parseBoatQueryParam(resolvedSearchParams);
   const selectedBoatState = parseSelectedBoatFromSearchParams(
-    resolvedSearchParams
+    resolvedSearchParams,
+    boats
   );
   const selectedBoat = selectedBoatState.boat;
   const visibleTripTypes = getSupportedTripTypesForBoat(selectedBoat);
-  const boatsForAvailability = selectedBoat ? [selectedBoat] : boats;
+  const availabilitySnapshot = await getAvailabilitySnapshot({
+    date: sampleAvailabilityDate,
+    boatId: selectedBoat?.id
+  });
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-16">
@@ -144,46 +146,34 @@ export default async function BookingPage({
           description={`Mock slot state for ${sampleAvailabilityDate}. A slot is blocked when an active booking or manual admin block already occupies it.`}
         >
           <div className="space-y-4">
-            {boatsForAvailability.map((boat) => (
+            {availabilitySnapshot.map((availabilityRow) => (
               <div
-                key={boat.id}
+                key={availabilityRow.boat.id}
                 className="rounded-xl border border-slate-200 bg-slate-50 p-4"
               >
                 <p className="text-sm font-semibold text-slate-900">
-                  {boat.name}
+                  {availabilityRow.boat.name}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {getSupportedTripTypesForBoat(boat).map((tripType) => {
-                    const blockedBy = getSlotBlockReason(
-                      {
-                        boatId: boat.id,
-                        date: sampleAvailabilityDate,
-                        tripType
-                      },
-                      sampleBookings,
-                      availabilityBlocks
-                    );
-
-                    return (
-                      <Pill
-                        key={`${boat.id}-${tripType}`}
-                        tone={
-                          blockedBy === null
-                            ? "success"
-                            : blockedBy === "admin"
-                              ? "warning"
-                              : "neutral"
-                        }
-                      >
-                        {tripTypeLabels[tripType]}:{" "}
-                        {blockedBy === null
-                          ? "Available"
-                          : blockedBy === "admin"
-                            ? "Admin blocked"
-                            : "Booked"}
-                      </Pill>
-                    );
-                  })}
+                  {availabilityRow.slots.map((slot) => (
+                    <Pill
+                      key={`${availabilityRow.boat.id}-${slot.tripType}`}
+                      tone={
+                        slot.blockedBy === null
+                          ? "success"
+                          : slot.blockedBy === "admin"
+                            ? "warning"
+                            : "neutral"
+                      }
+                    >
+                      {tripTypeLabels[slot.tripType]}:{" "}
+                      {slot.blockedBy === null
+                        ? "Available"
+                        : slot.blockedBy === "admin"
+                          ? "Admin blocked"
+                          : "Booked"}
+                    </Pill>
+                  ))}
                 </div>
               </div>
             ))}
@@ -289,7 +279,7 @@ export default async function BookingPage({
         description="Each boat and trip type pair already has a shared price rule in the domain package."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {boatsForAvailability.map((boat) => (
+          {(selectedBoat ? [selectedBoat] : boats).map((boat) => (
             <div
               key={boat.id}
               className="rounded-xl border border-slate-200 bg-slate-50 p-4"
@@ -297,7 +287,11 @@ export default async function BookingPage({
               <p className="text-sm font-semibold text-slate-900">{boat.name}</p>
               <ul className="mt-3 space-y-2 text-sm text-slate-600">
                 {getSupportedTripTypesForBoat(boat).map((tripType) => {
-                  const priceRule = getPriceForBoatAndTripType(boat.id, tripType);
+                  const priceRule = getPriceForBoatAndTripType(
+                    boat.id,
+                    tripType,
+                    priceRules
+                  );
 
                   return (
                     <li key={`${boat.id}-${tripType}`}>

@@ -1,23 +1,27 @@
 import {
   adminNavItems,
-  availabilityBlocks,
   bookingSourceLabels,
   bookingStatusLabels,
   getBoatById,
   notificationSummaryMock,
-  sampleBookings,
-  summarizePendingBookingsCount,
   tripTypeLabels
 } from "@boat/domain";
+import {
+  countPendingBookings,
+  listAvailabilityBlocks,
+  listBoats,
+  listRecentBookings
+} from "@boat/db";
 import { Pill, ShellCard } from "@boat/ui";
 
-export default function AdminPage() {
-  const pendingBookingsCount = summarizePendingBookingsCount(sampleBookings);
-  const recentBookings = [...sampleBookings]
-    .sort((leftBooking, rightBooking) => {
-      return rightBooking.createdAt.localeCompare(leftBooking.createdAt);
-    })
-    .slice(0, 3);
+export default async function AdminPage() {
+  const [boats, pendingBookingsCount, recentBookings, availabilityBlocks] =
+    await Promise.all([
+      listBoats(),
+      countPendingBookings(),
+      listRecentBookings(3),
+      listAvailabilityBlocks(3)
+    ]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-16">
@@ -58,7 +62,7 @@ export default function AdminPage() {
         >
           <div className="space-y-4">
             {recentBookings.map((booking) => {
-              const boat = getBoatById(booking.boatId);
+              const boat = getBoatById(booking.boatId, boats);
 
               return (
                 <div
@@ -82,11 +86,11 @@ export default function AdminPage() {
                     </Pill>
                   </div>
                   <p className="mt-2 text-sm text-slate-600">
-                    {boat?.name ?? booking.boatId} •{" "}
-                    {tripTypeLabels[booking.tripType]} • {booking.date}
+                    {boat?.name ?? booking.boatId} -{" "}
+                    {tripTypeLabels[booking.tripType]} - {booking.date}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    Source: {bookingSourceLabels[booking.source]} • Party size{" "}
+                    Source: {bookingSourceLabels[booking.source]} - Party size{" "}
                     {booking.partySize}
                   </p>
                 </div>
@@ -102,7 +106,7 @@ export default function AdminPage() {
         >
           <div className="space-y-4">
             {availabilityBlocks.map((block) => {
-              const boat = getBoatById(block.boatId);
+              const boat = getBoatById(block.boatId, boats);
 
               return (
                 <div
@@ -116,10 +120,10 @@ export default function AdminPage() {
                     <Pill tone="warning">Blocked</Pill>
                   </div>
                   <p className="mt-2 text-sm text-slate-600">
-                    {tripTypeLabels[block.tripType]} • {block.date}
+                    {tripTypeLabels[block.tripType]} - {block.date}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
-                    {block.reason} • {block.createdByLabel}
+                    {block.reason} - {block.createdByLabel}
                   </p>
                 </div>
               );

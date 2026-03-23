@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@boat/db": "workspace:*",
     "@boat/domain": "workspace:*",
     "@boat/ui": "workspace:*",
     "next": "16.2.1",

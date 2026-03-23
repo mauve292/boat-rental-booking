@@ -5,4 +5,7 @@ dist
 coverage
 out
 *.tsbuildinfo
+.env
+.env.local
+.env.*.local
 .DS_Store

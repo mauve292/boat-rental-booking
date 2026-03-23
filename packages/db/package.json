@@ -1,0 +1,25 @@
+{
+  "name": "@boat/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@boat/domain": "workspace:*",
+    "@prisma/client": "6.19.2"
+  },
+  "devDependencies": {
+    "prisma": "6.19.2",
+    "tsx": "4.21.0"
+  },
+  "scripts": {
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit"
+  }
+}

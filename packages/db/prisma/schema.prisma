@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TripType {
+  half_day
+  full_day
+  sunset_cruise
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum BookingSource {
+  site_fleet
+  booking_app
+  admin_manual
+}
+
+model Boat {
+  id                 String                @id @default(cuid())
+  slug               String                @unique
+  name               String
+  shortDescription   String
+  capacity           Int
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  image              BoatImage?
+  amenities          Amenity[]             @relation("BoatAmenities")
+  destinations       Destination[]         @relation("BoatDestinations")
+  supportedTripTypes BoatTripTypeSupport[]
+  priceRules         PriceRule[]
+  bookings           Booking[]
+  availabilityBlocks AvailabilityBlock[]
+  slotOccupancies    SlotOccupancy[]
+}
+
+model Destination {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  summary   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  boats     Boat[]   @relation("BoatDestinations")
+}
+
+model Amenity {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  label     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  boats     Boat[]   @relation("BoatAmenities")
+}
+
+model BoatImage {
+  id        String   @id @default(cuid())
+  boatId    String   @unique
+  src       String
+  alt       String
+  width     Int
+  height    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  boat      Boat     @relation(fields: [boatId], references: [id], onDelete: Cascade)
+}
+
+model BoatTripTypeSupport {
+  id        String   @id @default(cuid())
+  boatId    String
+  tripType  TripType
+  createdAt DateTime @default(now())
+  boat      Boat     @relation(fields: [boatId], references: [id], onDelete: Cascade)
+
+  @@unique([boatId, tripType])
+  @@index([boatId])
+}
+
+model PriceRule {
+  id        String   @id @default(cuid())
+  boatId    String
+  tripType  TripType
+  amount    Decimal  @db.Decimal(10, 2)
+  currency  String   @db.VarChar(3)
+  label     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  boat      Boat     @relation(fields: [boatId], references: [id], onDelete: Cascade)
+
+  @@unique([boatId, tripType])
+  @@index([boatId])
+}
+
+model Booking {
+  id            String         @id @default(cuid())
+  boatId        String
+  date          DateTime       @db.Date
+  tripType      TripType
+  status        BookingStatus
+  source        BookingSource
+  customerName  String
+  email         String
+  phone         String
+  partySize     Int
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  boat          Boat           @relation(fields: [boatId], references: [id], onDelete: Cascade)
+  slotOccupancy SlotOccupancy?
+
+  @@index([boatId, date])
+  @@index([status])
+}
+
+model AvailabilityBlock {
+  id            String         @id @default(cuid())
+  boatId        String
+  date          DateTime       @db.Date
+  tripType      TripType
+  reason        String
+  createdByLabel String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  boat          Boat           @relation(fields: [boatId], references: [id], onDelete: Cascade)
+  slotOccupancy SlotOccupancy?
+
+  @@index([boatId, date])
+}
+
+model SlotOccupancy {
+  id                  String            @id @default(cuid())
+  boatId              String
+  date                DateTime          @db.Date
+  tripType            TripType
+  bookingId           String?           @unique
+  availabilityBlockId String?           @unique
+  createdAt           DateTime          @default(now())
+  boat                Boat              @relation(fields: [boatId], references: [id], onDelete: Cascade)
+  booking             Booking?          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  availabilityBlock   AvailabilityBlock? @relation(fields: [availabilityBlockId], references: [id], onDelete: Cascade)
+
+  @@unique([boatId, date, tripType])
+  @@index([boatId, date])
+}
+

@@ -7,6 +7,10 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
+    "db:generate": "pnpm --filter @boat/db prisma:generate",
+    "db:migrate": "pnpm --filter @boat/db prisma:migrate",
+    "db:push": "pnpm --filter @boat/db prisma:push",
+    "db:seed": "pnpm --filter @boat/db prisma:seed",
     "dev:site": "turbo dev --filter=@boat/site",
     "dev:booking": "turbo dev --filter=@boat/booking",
     "dev:admin": "turbo dev --filter=@boat/admin"

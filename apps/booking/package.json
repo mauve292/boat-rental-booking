@@ -1,0 +1,29 @@
+{
+  "name": "@boat/booking",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@boat/types": "workspace:*",
+    "@boat/ui": "workspace:*",
+    "@boat/validation": "workspace:*",
+    "next": "16.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@boat/config": "workspace:*",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "autoprefixer": "10.4.27",
+    "postcss": "8.5.8",
+    "tailwindcss": "3.4.19",
+    "typescript": "5.9.3"
+  }
+}

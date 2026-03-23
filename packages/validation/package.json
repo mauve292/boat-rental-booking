@@ -1,0 +1,17 @@
+{
+  "name": "@boat/validation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@boat/types": "workspace:*",
+    "zod": "4.3.6"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}
+

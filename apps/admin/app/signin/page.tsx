@@ -10,8 +10,20 @@ export const metadata: Metadata = {
   description: "Sign in to the protected admin surface."
 };
 
-export default async function SignInPage() {
+type SignInPageProps = {
+  searchParams: Promise<Readonly<Record<string, string | string[] | undefined>>>;
+};
+
+export default async function SignInPage({ searchParams }: SignInPageProps) {
   await redirectIfAuthenticated();
+  const resolvedSearchParams = await searchParams;
+  const errorCode = Array.isArray(resolvedSearchParams.error)
+    ? resolvedSearchParams.error[0]
+    : resolvedSearchParams.error;
+  const accessErrorMessage =
+    errorCode === "admin_required"
+      ? "Admin access is required to continue."
+      : null;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center px-6 py-16">
@@ -21,6 +33,11 @@ export default async function SignInPage() {
           title="Sign in"
           description="Use the seeded admin credentials from your local environment. The public site and booking app remain unauthenticated in this phase."
         >
+          {accessErrorMessage ? (
+            <p className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {accessErrorMessage}
+            </p>
+          ) : null}
           <SignInForm />
         </ShellCard>
 

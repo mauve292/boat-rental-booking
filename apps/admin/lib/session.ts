@@ -23,7 +23,7 @@ export async function requireAdminSession() {
   const session = await getAdminSession();
 
   if (!session) {
-    redirect("/signin");
+    redirect("/signin?error=admin_required");
   }
 
   return session;

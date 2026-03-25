@@ -1,4 +1,10 @@
-import type { Boat, BookingSource, TripType } from "@boat/domain";
+import type {
+  Boat,
+  Booking,
+  BookingSource,
+  BookingStatus,
+  TripType
+} from "@boat/domain";
 
 export type SlotBlockSource = "booking" | "admin" | null;
 
@@ -31,4 +37,40 @@ export interface CreatePendingBookingInput {
   source?: BookingSource;
   partySize?: number;
   notes?: string | null;
+}
+
+export interface ListBookingsFilters {
+  status?: BookingStatus;
+  boatId?: string;
+}
+
+export interface AdminBookingListItem {
+  id: string;
+  customerName: string;
+  email: string;
+  phone: string;
+  boatId: string;
+  boatName: string;
+  boatSlug: string;
+  date: string;
+  tripType: TripType;
+  status: BookingStatus;
+  source: BookingSource;
+  createdAt: string;
+}
+
+export interface AdminBookingDetail extends AdminBookingListItem {
+  updatedAt: string;
+  partySize: number;
+  notes?: string;
+  slotOccupied: boolean;
+  currentSlotBlockedBy: SlotBlockSource;
+  currentSlotOccupancyId: string | null;
+  currentSlotBookingId: string | null;
+  currentSlotAvailabilityBlockId: string | null;
+}
+
+export interface BookingMutationResult {
+  booking: Booking;
+  changed: boolean;
 }

@@ -13,6 +13,7 @@ import {
   listRecentBookings
 } from "@boat/db";
 import { Pill, ShellCard } from "@boat/ui";
+import Link from "next/link";
 
 export default async function AdminPage() {
   const [boats, pendingBookingsCount, recentBookings, availabilityBlocks] =
@@ -28,7 +29,7 @@ export default async function AdminPage() {
       <ShellCard
         eyebrow="Admin App"
         title="Admin Dashboard"
-        description="Operational shell backed by Prisma, shared repositories, and the phase-1 admin authentication layer."
+        description="Operational shell backed by Prisma, shared repositories, and the first real admin booking-management routes."
       >
         <div className="flex flex-wrap gap-3">
           <Pill tone="warning">{pendingBookingsCount} pending bookings</Pill>
@@ -36,6 +37,12 @@ export default async function AdminPage() {
             {notificationSummaryMock.total} notification items
           </Pill>
           <Pill>{notificationSummaryMock.blockedSlots} blocked slots</Pill>
+          <Link
+            className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+            href="/bookings"
+          >
+            Open bookings
+          </Link>
         </div>
       </ShellCard>
 
@@ -50,6 +57,14 @@ export default async function AdminPage() {
             <Pill tone={item.id === "notifications" ? "warning" : "accent"}>
               {item.label}
             </Pill>
+            <div className="mt-4">
+              <Link
+                className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                href={item.href}
+              >
+                Open
+              </Link>
+            </div>
           </ShellCard>
         ))}
       </section>
@@ -93,6 +108,14 @@ export default async function AdminPage() {
                     Source: {bookingSourceLabels[booking.source]} - Party size{" "}
                     {booking.partySize}
                   </p>
+                  <div className="mt-4">
+                    <Link
+                      className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                      href={`/bookings/${booking.id}`}
+                    >
+                      Open booking
+                    </Link>
+                  </div>
                 </div>
               );
             })}

@@ -79,13 +79,13 @@ export const adminNavItems = [
   {
     id: "dashboard",
     label: "Dashboard",
-    href: "#dashboard",
+    href: "/",
     description: "Operational overview for the current booking season."
   },
   {
     id: "bookings",
     label: "Bookings",
-    href: "#bookings",
+    href: "/bookings",
     description: "Review incoming requests and reservation status."
   },
   {
@@ -113,4 +113,3 @@ export const adminNavItems = [
     description: "Operational settings, season controls, and integrations later."
   }
 ] as const satisfies readonly AdminNavItem[];
-

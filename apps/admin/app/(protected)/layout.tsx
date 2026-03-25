@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { Pill } from "@boat/ui";
 import { requireAdminSession } from "@/lib/session";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -26,6 +27,20 @@ export default async function ProtectedLayout({
               </h1>
               <Pill tone="accent">{session.user.email}</Pill>
             </div>
+            <nav className="flex flex-wrap gap-2 pt-1">
+              <Link
+                className="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                href="/"
+              >
+                Dashboard
+              </Link>
+              <Link
+                className="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                href="/bookings"
+              >
+                Bookings
+              </Link>
+            </nav>
           </div>
           <SignOutButton />
         </div>

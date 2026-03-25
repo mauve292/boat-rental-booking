@@ -58,7 +58,7 @@ export default async function AdminPage() {
         <ShellCard
           eyebrow="Recent Bookings"
           title="Latest booking preview"
-          description="Shared mock booking records using the pending, confirmed, and cancelled workflow."
+          description="Recent booking requests and reservations from the shared repository layer."
         >
           <div className="space-y-4">
             {recentBookings.map((booking) => {

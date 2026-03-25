@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Boat Booking",
-  description: "Booking app shell for the boat-rental booking demo."
+  description: "Public booking app with pending booking submission for the boat-rental booking demo."
 };
 
 export default function RootLayout({

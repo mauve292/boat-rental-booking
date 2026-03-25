@@ -1,6 +1,6 @@
 # Boat Rental Booking Monorepo
 
-Portable pnpm workspace scaffold for a boat-rental booking demo. The repository is split into separate Next.js apps so it can map cleanly to a main site, booking subdomain, and admin subdomain later without carrying business logic yet.
+Portable pnpm workspace scaffold for a boat-rental booking demo. The repository is split into separate Next.js apps so it can map cleanly to a main site, booking subdomain, and admin subdomain later while keeping business logic in shared packages.
 
 ## Workspace Structure
 
@@ -15,7 +15,7 @@ packages/
   domain/     Shared booking domain types, mock data, and pure helpers
   types/      Shared TypeScript types/constants
   ui/         Shared UI component package
-  validation/ Shared Zod schemas for booking/query input drafts
+  validation/ Shared Zod schemas for booking/query inputs and public booking submission
 ```
 
 ## Install
@@ -80,8 +80,13 @@ corepack pnpm db:seed
 - `packages/domain` contains the shared fleet, price rules, mock bookings, mock availability blocks, booking season config, and pure helpers such as boat lookup, slot keys, seasonal checks, and booking preselection helpers.
 - Boat preselection works through a shared `boat` query param. Example booking path: `/?boat=aurora`.
 - The public site uses shared helpers to link into the booking app with either a preselected boat or a generic booking entry.
-- `packages/validation` now holds draft-friendly booking form and query schemas that align with the shared domain model.
+- `packages/validation` now holds the shared query parsing and public booking submission schemas used on both the client and server.
 - The apps now read through `@boat/db` repository functions. When `DATABASE_URL` is not configured, the repository layer falls back to the existing domain mock data so the UI can still build.
 - Prisma seed data is derived from the shared domain mock dataset so the initial Postgres contents match the current demo fleet and sample booking state.
-- Still intentionally missing: public customer accounts, payments, booking submission flows, admin CRUD, and production notification delivery.
+- Public booking submission now runs server-side in the booking app. Required public fields are full name, email, phone country code, phone number, boat, date, and trip type.
+- New public bookings are created with `status = pending` and `source = booking_app`. Pending bookings occupy the slot immediately through `SlotOccupancy`; cancelled bookings do not.
+- Admin blocks and active bookings both make a slot unavailable. Public submissions re-check availability on the server and return a user-safe conflict message if the slot was taken first.
+- Payment is still mock-only. The booking UI shows pricing context, but no payment provider is integrated yet.
+- Real booking writes require `DATABASE_URL` so the booking app can create records in Postgres. Without a configured database, reads still fall back to mock data but submission is unavailable.
+- Still intentionally missing: public customer accounts, payment integration, admin CRUD, and production notification delivery.
 - The structure is ready for future additions such as Prisma/Postgres, Better Auth, shared booking logic, and rate limiting without coupling those concerns into the initial scaffold.

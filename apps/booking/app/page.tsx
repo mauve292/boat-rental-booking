@@ -1,10 +1,10 @@
 import {
-  bookingSeason,
   bookingQueryKeys,
+  bookingSeason,
+  formatCurrencyAmount,
   getBoatBookingHref,
   getPriceForBoatAndTripType,
   getSupportedTripTypesForBoat,
-  isDateWithinSeason,
   parseSelectedBoatFromSearchParams,
   tripTypeLabels
 } from "@boat/domain";
@@ -13,12 +13,40 @@ import type { SearchParamsRecord } from "@boat/types";
 import { Pill, ShellCard } from "@boat/ui";
 import { parseBoatQueryParam } from "@boat/validation";
 import Link from "next/link";
+import { BookingForm } from "./booking-form";
 
-const sampleAvailabilityDate = "2026-06-15";
+export const dynamic = "force-dynamic";
 
 type BookingPageProps = {
   searchParams: Promise<SearchParamsRecord>;
 };
+
+function getSeasonDateBounds(referenceDate: Date): {
+  minDate: string;
+  maxDate: string;
+  initialDate: string;
+} {
+  const referenceMonth = referenceDate.getUTCMonth() + 1;
+  const seasonYear =
+    referenceMonth > bookingSeason.endMonth
+      ? referenceDate.getUTCFullYear() + 1
+      : referenceDate.getUTCFullYear();
+  const minDate = `${seasonYear}-${String(bookingSeason.startMonth).padStart(2, "0")}-01`;
+  const maxDate = new Date(
+    Date.UTC(seasonYear, bookingSeason.endMonth, 0)
+  )
+    .toISOString()
+    .slice(0, 10);
+  const today = referenceDate.toISOString().slice(0, 10);
+  const initialDate =
+    today < minDate || today > maxDate ? minDate : today;
+
+  return {
+    minDate,
+    maxDate,
+    initialDate
+  };
+}
 
 export default async function BookingPage({
   searchParams
@@ -32,8 +60,9 @@ export default async function BookingPage({
   );
   const selectedBoat = selectedBoatState.boat;
   const visibleTripTypes = getSupportedTripTypesForBoat(selectedBoat);
+  const { initialDate, minDate, maxDate } = getSeasonDateBounds(new Date());
   const availabilitySnapshot = await getAvailabilitySnapshot({
-    date: sampleAvailabilityDate,
+    date: initialDate,
     boatId: selectedBoat?.id
   });
 
@@ -42,21 +71,16 @@ export default async function BookingPage({
       <ShellCard
         eyebrow="Booking App"
         title="Boat Booking"
-        description="Slot-based booking shell with boat preselection, seasonal context, and mock availability. Submission and persistence are intentionally not implemented yet."
+        description="Public booking requests now submit server-side, create real pending bookings, and reserve their slot immediately with SlotOccupancy."
       >
         <div className="flex flex-wrap gap-3">
           {selectedBoat ? (
             <Pill tone="accent">Preselected: {selectedBoat.name}</Pill>
           ) : (
-            <Pill>Generic booking entry</Pill>
+            <Pill>Manual boat selection enabled</Pill>
           )}
-          <Pill
-            tone={
-              isDateWithinSeason(sampleAvailabilityDate) ? "success" : "warning"
-            }
-          >
-            Season: {bookingSeason.label}
-          </Pill>
+          <Pill tone="success">Season: {bookingSeason.label}</Pill>
+          <Pill tone="accent">New requests start as pending</Pill>
           {rawBoatSlug && !selectedBoatState.isValid ? (
             <Pill tone="warning">Unknown boat slug: {rawBoatSlug}</Pill>
           ) : null}
@@ -69,8 +93,8 @@ export default async function BookingPage({
           title="Choose a boat"
           description={
             selectedBoat
-              ? "The current query param resolved to a valid boat and is reflected below."
-              : `No valid ${bookingQueryKeys.boat} query param is set, so the page is showing the generic booking entry state.`
+              ? "The current query param resolved to a valid boat. The form stays locked to that boat unless you switch it here."
+              : `No valid ${bookingQueryKeys.boat} query param is set, so the form stays open for manual boat selection.`
           }
         >
           <div className="flex flex-wrap gap-3">
@@ -122,7 +146,11 @@ export default async function BookingPage({
         <ShellCard
           eyebrow="Trip Types"
           title="Available trip modes"
-          description="Trip choices are filtered by the selected boat. With no preselected boat, all supported trip types stay visible."
+          description={
+            selectedBoat
+              ? "Trip choices are filtered to the currently selected boat."
+              : "Choose a boat in the form to unlock the trip types supported for that vessel."
+          }
         >
           <div className="flex flex-wrap gap-2">
             {visibleTripTypes.map((tripType) => (
@@ -130,11 +158,11 @@ export default async function BookingPage({
                 {tripTypeLabels[tripType]}
               </Pill>
             ))}
+            {!selectedBoat ? <Pill tone="warning">Pick a boat to continue</Pill> : null}
           </div>
           <p className="mt-4 text-sm leading-6 text-slate-600">
-            The season currently runs from {bookingSeason.label}. Outside that
-            range, future availability logic can reject dates before any
-            database lookup is needed.
+            Booking dates currently open for {minDate} through {maxDate}. Final
+            availability is checked server-side when the booking is submitted.
           </p>
         </ShellCard>
       </section>
@@ -142,8 +170,8 @@ export default async function BookingPage({
       <section className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <ShellCard
           eyebrow="Availability"
-          title="Sample slot availability"
-          description={`Mock slot state for ${sampleAvailabilityDate}. A slot is blocked when an active booking or manual admin block already occupies it.`}
+          title="Initial slot snapshot"
+          description={`Database-backed slot state for ${initialDate}. A slot is unavailable when a non-cancelled booking or an admin block already occupies it.`}
         >
           <div className="space-y-4">
             {availabilitySnapshot.map((availabilityRow) => (
@@ -181,102 +209,25 @@ export default async function BookingPage({
         </ShellCard>
 
         <ShellCard
-          eyebrow="Form Draft"
-          title="Placeholder booking form"
-          description="Field layout only. Submission, payment, auth, and server persistence will be added in later steps."
+          eyebrow="Booking Form"
+          title="Request a booking"
+          description="Required fields are full name, email, mobile / phone, boat, date, and trip type. Payment is still informational only in this step."
         >
-          <form className="grid gap-4 sm:grid-cols-2">
-            <label className="text-sm text-slate-600">
-              Boat
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900"
-                disabled
-                readOnly
-                value={selectedBoat?.name ?? "Select during booking flow"}
-              />
-            </label>
-            <label className="text-sm text-slate-600">
-              Trip type
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900"
-                disabled
-                readOnly
-                value={visibleTripTypes
-                  .map((tripType) => tripTypeLabels[tripType])
-                  .join(", ")}
-              />
-            </label>
-            <label className="text-sm text-slate-600">
-              Date
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900"
-                disabled
-                readOnly
-                value="YYYY-MM-DD"
-              />
-            </label>
-            <label className="text-sm text-slate-600">
-              Party size
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900"
-                disabled
-                readOnly
-                value={selectedBoat ? `1-${selectedBoat.capacity}` : "Choose a boat first"}
-              />
-            </label>
-            <label className="text-sm text-slate-600">
-              Full name
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900"
-                disabled
-                readOnly
-                value="Guest full name"
-              />
-            </label>
-            <label className="text-sm text-slate-600">
-              Email
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900"
-                disabled
-                readOnly
-                value="guest@example.com"
-              />
-            </label>
-            <label className="text-sm text-slate-600">
-              Phone
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900"
-                disabled
-                readOnly
-                value="+30 690 ..."
-              />
-            </label>
-            <label className="text-sm text-slate-600 sm:col-span-2">
-              Notes
-              <textarea
-                className="mt-1 min-h-28 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900"
-                disabled
-                readOnly
-                value="Share timing preferences, destination ideas, or passenger notes here."
-              />
-            </label>
-            <div className="sm:col-span-2">
-              <button
-                className="inline-flex items-center rounded-lg bg-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
-                disabled
-                type="button"
-              >
-                Submission not enabled yet
-              </button>
-            </div>
-          </form>
+          <BookingForm
+            boats={boats}
+            initialBoatId={selectedBoat?.id ?? null}
+            initialDate={initialDate}
+            maxDate={maxDate}
+            minDate={minDate}
+            priceRules={priceRules}
+          />
         </ShellCard>
       </section>
 
       <ShellCard
-        eyebrow="Pricing Sample"
-        title="Mock pricing view"
-        description="Each boat and trip type pair already has a shared price rule in the domain package."
+        eyebrow="Pricing"
+        title="Fleet pricing reference"
+        description="Boat and trip-type pricing remains shared and DB-backed. The form shows the live selected price while this table keeps the broader context."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {(selectedBoat ? [selectedBoat] : boats).map((boat) => (
@@ -300,7 +251,9 @@ export default async function BookingPage({
                       </span>
                       {" - "}
                       <span>
-                        {priceRule ? priceRule.label : "Pricing unavailable"}
+                        {priceRule
+                          ? formatCurrencyAmount(priceRule.amount, priceRule.currency)
+                          : "Pricing unavailable"}
                       </span>
                     </li>
                   );

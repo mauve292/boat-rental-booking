@@ -109,6 +109,11 @@ export interface BookingSeasonSettings {
   label: string;
 }
 
+export interface PhoneCountryOption {
+  code: string;
+  label: string;
+}
+
 export interface AdminNavItem {
   id: string;
   label: string;

@@ -11,6 +11,7 @@ import {
   summarizePendingBookingsCount
 } from "@boat/domain";
 import type { Boat, Booking, AvailabilityBlock, PriceRule } from "@boat/domain";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "./client";
 import {
   boatQuery,
@@ -20,7 +21,128 @@ import {
   mapPriceRuleRecordToDomain,
   toUtcDateOnly
 } from "./mappers";
-import type { AvailabilitySnapshotRow, SlotBlockSource } from "./types";
+import type {
+  AvailabilitySnapshotRow,
+  CreatePendingBookingInput,
+  SlotAvailabilityState,
+  SlotBlockSource
+} from "./types";
+
+const defaultPublicPartySize = 1;
+
+type BookingWriteExecutor = Prisma.TransactionClient | PrismaClient;
+
+function getSlotBlockSourceFromOccupancy(occupancy: {
+  bookingId: string | null;
+  availabilityBlockId: string | null;
+}): SlotBlockSource {
+  if (occupancy.bookingId) {
+    return "booking";
+  }
+
+  if (occupancy.availabilityBlockId) {
+    return "admin";
+  }
+
+  return null;
+}
+
+function isSlotOccupancyUniqueConflict(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002" &&
+    Array.isArray(error.meta?.target) &&
+    error.meta.target.includes("boatId") &&
+    error.meta.target.includes("date") &&
+    error.meta.target.includes("tripType")
+  );
+}
+
+async function getSlotAvailabilityStateFromExecutor(
+  executor: BookingWriteExecutor,
+  input: {
+    boatId: string;
+    date: string;
+    tripType: PriceRule["tripType"];
+  }
+): Promise<SlotAvailabilityState> {
+  const occupancy = await executor.slotOccupancy.findUnique({
+    where: {
+      boatId_date_tripType: {
+        boatId: input.boatId,
+        date: toUtcDateOnly(input.date),
+        tripType: input.tripType
+      }
+    },
+    select: {
+      bookingId: true,
+      availabilityBlockId: true
+    }
+  });
+
+  const blockedBy = occupancy ? getSlotBlockSourceFromOccupancy(occupancy) : null;
+
+  return {
+    boatId: input.boatId,
+    date: input.date,
+    tripType: input.tripType,
+    isBookable: blockedBy === null,
+    blockedBy
+  };
+}
+
+async function assertBoatSupportsTripType(
+  executor: BookingWriteExecutor,
+  input: {
+    boatId: string;
+    tripType: PriceRule["tripType"];
+  }
+): Promise<void> {
+  const boat = await executor.boat.findUnique({
+    where: {
+      id: input.boatId
+    },
+    select: {
+      id: true,
+      supportedTripTypes: {
+        where: {
+          tripType: input.tripType
+        },
+        select: {
+          id: true
+        }
+      }
+    }
+  });
+
+  if (!boat || boat.supportedTripTypes.length === 0) {
+    throw new UnsupportedBoatTripTypeError();
+  }
+}
+
+export class DatabaseWriteUnavailableError extends Error {
+  constructor() {
+    super("Booking submission requires a configured database connection.");
+    this.name = "DatabaseWriteUnavailableError";
+  }
+}
+
+export class SlotUnavailableError extends Error {
+  readonly blockedBy: SlotBlockSource;
+
+  constructor(blockedBy: SlotBlockSource = null) {
+    super("The selected slot is no longer available.");
+    this.name = "SlotUnavailableError";
+    this.blockedBy = blockedBy;
+  }
+}
+
+export class UnsupportedBoatTripTypeError extends Error {
+  constructor() {
+    super("The selected boat and trip type combination is not valid.");
+    this.name = "UnsupportedBoatTripTypeError";
+  }
+}
 
 function sortByCreatedAtDescending<T extends { createdAt: string }>(items: T[]): T[] {
   return [...items].sort((leftItem, rightItem) =>
@@ -154,6 +276,101 @@ export async function countPendingBookings(): Promise<number> {
   });
 }
 
+export async function getSlotAvailabilityState(input: {
+  boatId: string;
+  date: string;
+  tripType: PriceRule["tripType"];
+}): Promise<SlotAvailabilityState> {
+  if (!prisma) {
+    const blockedBy = getSlotBlockReason(input, mockBookings, mockAvailabilityBlocks);
+
+    return {
+      boatId: input.boatId,
+      date: input.date,
+      tripType: input.tripType,
+      isBookable: blockedBy === null,
+      blockedBy
+    };
+  }
+
+  return getSlotAvailabilityStateFromExecutor(prisma, input);
+}
+
+export async function assertSlotBookable(input: {
+  boatId: string;
+  date: string;
+  tripType: PriceRule["tripType"];
+}): Promise<void> {
+  const availability = await getSlotAvailabilityState(input);
+
+  if (!availability.isBookable) {
+    throw new SlotUnavailableError(availability.blockedBy);
+  }
+}
+
+export async function createPendingBooking(
+  input: CreatePendingBookingInput
+): Promise<Booking> {
+  if (!prisma) {
+    throw new DatabaseWriteUnavailableError();
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const slot = {
+      boatId: input.boatId,
+      date: input.date,
+      tripType: input.tripType
+    };
+
+    await assertBoatSupportsTripType(transaction, slot);
+
+    const slotAvailability = await getSlotAvailabilityStateFromExecutor(
+      transaction,
+      slot
+    );
+
+    if (!slotAvailability.isBookable) {
+      throw new SlotUnavailableError(slotAvailability.blockedBy);
+    }
+
+    const bookingDate = toUtcDateOnly(input.date);
+
+    const bookingRecord = await transaction.booking.create({
+      data: {
+        boatId: input.boatId,
+        date: bookingDate,
+        tripType: input.tripType,
+        status: "pending",
+        source: input.source ?? "booking_app",
+        customerName: input.customerName,
+        email: input.email,
+        phone: input.phone,
+        partySize: input.partySize ?? defaultPublicPartySize,
+        notes: input.notes ?? null
+      }
+    });
+
+    try {
+      await transaction.slotOccupancy.create({
+        data: {
+          boatId: input.boatId,
+          date: bookingDate,
+          tripType: input.tripType,
+          bookingId: bookingRecord.id
+        }
+      });
+    } catch (error) {
+      if (isSlotOccupancyUniqueConflict(error)) {
+        throw new SlotUnavailableError();
+      }
+
+      throw error;
+    }
+
+    return mapBookingRecordToDomain(bookingRecord);
+  });
+}
+
 export async function getAvailabilitySnapshot(input: {
   date: string;
   boatId?: string;
@@ -215,4 +432,3 @@ export async function getAvailabilitySnapshot(input: {
     }))
   }));
 }
-

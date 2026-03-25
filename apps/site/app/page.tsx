@@ -20,7 +20,7 @@ export default async function SitePage() {
       <ShellCard
         eyebrow="Public Site"
         title="Boat Rental Fleet"
-        description="Explore the current mock fleet and hand off into the booking app with a preselected boat. Data is shared from the domain package and remains mock-only for now."
+        description="Explore the current fleet and hand off into the booking app with a preselected boat. Public booking requests now create real pending bookings in the shared database."
       >
         <div className="flex flex-wrap gap-3">
           <Pill tone="accent">3 boats</Pill>

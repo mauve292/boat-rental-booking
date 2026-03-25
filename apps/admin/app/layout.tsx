@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",
-  description: "Admin app shell for the boat-rental booking demo."
+  description: "Protected admin app for the boat-rental booking demo."
 };
 
 export default function RootLayout({

@@ -28,7 +28,7 @@ export default async function AdminPage() {
       <ShellCard
         eyebrow="Admin App"
         title="Admin Dashboard"
-        description="Operational shell backed by shared mock bookings, availability blocks, price rules, and notification summaries."
+        description="Operational shell backed by Prisma, shared repositories, and the phase-1 admin authentication layer."
       >
         <div className="flex flex-wrap gap-3">
           <Pill tone="warning">{pendingBookingsCount} pending bookings</Pill>

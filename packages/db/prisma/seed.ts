@@ -5,15 +5,91 @@ import {
   priceRules,
   sampleBookings
 } from "@boat/domain";
+import { hashPassword } from "better-auth/crypto";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const defaultAdminEmail = "admin@boatrental.local";
+const defaultAdminPassword = "AdminDemo123!";
+const defaultAdminName = "Boat Rental Admin";
 
 function toUtcDateOnly(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
 }
 
+async function seedAdminUser() {
+  const adminEmail = (process.env.ADMIN_EMAIL ?? defaultAdminEmail).toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD ?? defaultAdminPassword;
+  const adminName = process.env.ADMIN_NAME ?? defaultAdminName;
+  const passwordHash = await hashPassword(adminPassword);
+
+  const existingAdmin = await prisma.user.findUnique({
+    where: {
+      email: adminEmail
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (existingAdmin) {
+    await prisma.session.deleteMany({
+      where: {
+        userId: existingAdmin.id
+      }
+    });
+
+    await prisma.account.deleteMany({
+      where: {
+        userId: existingAdmin.id
+      }
+    });
+  }
+
+  await prisma.user.upsert({
+    where: {
+      email: adminEmail
+    },
+    update: {
+      emailVerified: true,
+      name: adminName,
+      image: null,
+      role: "admin",
+      accounts: {
+        deleteMany: {}
+      }
+    },
+    create: {
+      email: adminEmail,
+      emailVerified: true,
+      name: adminName,
+      image: null,
+      role: "admin"
+    }
+  });
+
+  const adminUser = await prisma.user.findUniqueOrThrow({
+    where: {
+      email: adminEmail
+    },
+    select: {
+      id: true
+    }
+  });
+
+  await prisma.account.create({
+    data: {
+      userId: adminUser.id,
+      providerId: "credential",
+      accountId: adminUser.id,
+      password: passwordHash
+    }
+  });
+}
+
 async function main() {
+  await seedAdminUser();
+
   const uniqueAmenities = Array.from(
     new Set(boats.flatMap((boat) => boat.amenities))
   );
@@ -247,4 +323,3 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-

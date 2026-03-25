@@ -72,13 +72,16 @@ corepack pnpm db:seed
 - All apps use Next.js App Router, TypeScript, Tailwind CSS, and ESLint.
 - Shared packages are wired through workspace imports.
 - `packages/db` introduces the first real persistence layer with Prisma configured for PostgreSQL and a standard `DATABASE_URL`.
-- Copy [.env.example](C:/Users/bill2/Desktop/ithaca%20usefull/boat-rental-booking/.env.example) to `.env` and set `DATABASE_URL` before running Prisma migrations or seed commands.
+- Copy [.env.example](C:/Users/bill2/Desktop/ithaca%20usefull/boat-rental-booking/.env.example) to `.env` and set `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL` before running the Prisma/auth flow.
 - Local DB flow: `corepack pnpm db:generate`, `corepack pnpm db:migrate` (or `corepack pnpm db:push` if you intentionally want schema sync without migrations), then `corepack pnpm db:seed`.
+- Better Auth now protects the admin app only. The shared auth config lives in `packages/db`, uses the existing Prisma/Postgres database, and keeps the public `site` and `booking` apps unauthenticated.
+- Admin email/password sign-up is disabled in runtime. The development admin account is created by the Prisma seed using `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `ADMIN_NAME`.
+- Local admin sign-in lives at `http://localhost:3002/signin`. After seeding, sign in with the credentials from `.env`.
 - `packages/domain` contains the shared fleet, price rules, mock bookings, mock availability blocks, booking season config, and pure helpers such as boat lookup, slot keys, seasonal checks, and booking preselection helpers.
 - Boat preselection works through a shared `boat` query param. Example booking path: `/?boat=aurora`.
 - The public site uses shared helpers to link into the booking app with either a preselected boat or a generic booking entry.
 - `packages/validation` now holds draft-friendly booking form and query schemas that align with the shared domain model.
 - The apps now read through `@boat/db` repository functions. When `DATABASE_URL` is not configured, the repository layer falls back to the existing domain mock data so the UI can still build.
 - Prisma seed data is derived from the shared domain mock dataset so the initial Postgres contents match the current demo fleet and sample booking state.
-- Still intentionally missing: auth, payments, booking submission flows, admin CRUD, and production notification delivery.
+- Still intentionally missing: public customer accounts, payments, booking submission flows, admin CRUD, and production notification delivery.
 - The structure is ready for future additions such as Prisma/Postgres, Better Auth, shared booking logic, and rate limiting without coupling those concerns into the initial scaffold.

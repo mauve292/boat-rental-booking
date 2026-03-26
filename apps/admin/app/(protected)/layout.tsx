@@ -40,6 +40,12 @@ export default async function ProtectedLayout({
               >
                 Bookings
               </Link>
+              <Link
+                className="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                href="/availability"
+              >
+                Availability
+              </Link>
             </nav>
           </div>
           <SignOutButton />

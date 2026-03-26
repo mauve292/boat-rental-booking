@@ -91,7 +91,7 @@ export const adminNavItems = [
   {
     id: "availability",
     label: "Availability",
-    href: "#availability",
+    href: "/availability",
     description: "Inspect booked and manually blocked slots."
   },
   {

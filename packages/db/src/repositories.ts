@@ -23,11 +23,15 @@ import {
   toUtcDateOnly
 } from "./mappers";
 import type {
+  AvailabilityBlockMutationResult,
+  AvailabilityStateRow,
   AdminBookingDetail,
   AdminBookingListItem,
   AvailabilitySnapshotRow,
   BookingMutationResult,
+  CreateAvailabilityBlockInput,
   CreatePendingBookingInput,
+  ListAvailabilityStateFilters,
   ListBookingsFilters,
   SlotAvailabilityState,
   SlotBlockSource
@@ -37,6 +41,7 @@ const defaultPublicPartySize = 1;
 
 type BookingWriteExecutor = Prisma.TransactionClient | PrismaClient;
 type BookingTransitionAction = "confirm" | "cancel";
+type SlotState = AvailabilityStateRow["state"];
 
 function mapAdminBookingListItem(record: {
   id: string;
@@ -165,6 +170,68 @@ function mapMockBookingToAdminDetail(booking: Booking): AdminBookingDetail {
       booking.status === "cancelled" ? null : `mock-slot-${booking.id}`,
     currentSlotBookingId: booking.status === "cancelled" ? null : booking.id,
     currentSlotAvailabilityBlockId: null
+  };
+}
+
+function enumerateDateRange(dateFrom: string, dateTo: string): string[] {
+  const dates: string[] = [];
+  const currentDate = toUtcDateOnly(dateFrom);
+  const lastDate = toUtcDateOnly(dateTo);
+
+  while (currentDate <= lastDate) {
+    dates.push(toDateOnlyString(currentDate));
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+  }
+
+  return dates;
+}
+
+function getSlotStateFromBlockedBy(blockedBy: SlotBlockSource): SlotState {
+  if (blockedBy === "booking") {
+    return "booking";
+  }
+
+  if (blockedBy === "admin") {
+    return "admin";
+  }
+
+  return "free";
+}
+
+function mapMockAvailabilityStateRow(
+  boat: Boat,
+  bookingOrBlockDate: string,
+  tripType: Booking["tripType"],
+  filters: {
+    booking?: Booking;
+    block?: AvailabilityBlock;
+  }
+): AvailabilityStateRow {
+  const blockedBy = filters.booking
+    ? "booking"
+    : filters.block
+      ? "admin"
+      : null;
+
+  return {
+    boatId: boat.id,
+    boatName: boat.name,
+    boatSlug: boat.slug,
+    date: bookingOrBlockDate,
+    tripType,
+    state: getSlotStateFromBlockedBy(blockedBy),
+    bookingId: filters.booking?.id ?? null,
+    bookingStatus: filters.booking?.status ?? null,
+    bookingCustomerName: filters.booking?.customerName ?? null,
+    availabilityBlockId: filters.block?.id ?? null,
+    availabilityBlockReason: filters.block?.reason ?? null,
+    availabilityBlockCreatedByLabel: filters.block?.createdByLabel ?? null,
+    occupancyId:
+      filters.booking?.status && filters.booking.status !== "cancelled"
+        ? `mock-slot-${filters.booking.id}`
+        : filters.block
+          ? `mock-block-slot-${filters.block.id}`
+          : null
   };
 }
 
@@ -306,6 +373,23 @@ export class BookingOccupancyStateError extends Error {
   }
 }
 
+export class AvailabilityBlockNotFoundError extends Error {
+  constructor() {
+    super("The requested availability block could not be found.");
+    this.name = "AvailabilityBlockNotFoundError";
+  }
+}
+
+export class AvailabilityBlockConflictError extends Error {
+  readonly occupiedBy: Exclude<SlotBlockSource, null>;
+
+  constructor(occupiedBy: Exclude<SlotBlockSource, null>) {
+    super(`The slot is already occupied by ${occupiedBy}.`);
+    this.name = "AvailabilityBlockConflictError";
+    this.occupiedBy = occupiedBy;
+  }
+}
+
 function sortByCreatedAtDescending<T extends { createdAt: string }>(items: T[]): T[] {
   return [...items].sort((leftItem, rightItem) =>
     rightItem.createdAt.localeCompare(leftItem.createdAt)
@@ -342,6 +426,32 @@ async function getBookingRecordForMutationOrThrow(
   }
 
   return bookingRecord;
+}
+
+async function getAvailabilityBlockRecordForMutationOrThrow(
+  executor: BookingWriteExecutor,
+  availabilityBlockId: string
+) {
+  const availabilityBlockRecord = await executor.availabilityBlock.findUnique({
+    where: {
+      id: availabilityBlockId
+    },
+    select: {
+      id: true,
+      boatId: true,
+      date: true,
+      tripType: true,
+      reason: true,
+      createdAt: true,
+      createdByLabel: true
+    }
+  });
+
+  if (!availabilityBlockRecord) {
+    throw new AvailabilityBlockNotFoundError();
+  }
+
+  return availabilityBlockRecord;
 }
 
 export async function listBoats(): Promise<Boat[]> {
@@ -564,6 +674,193 @@ export async function getBookingDetailForAdmin(
   });
 }
 
+export async function listAvailabilityState(
+  filters: ListAvailabilityStateFilters
+): Promise<AvailabilityStateRow[]> {
+  const dateRange = enumerateDateRange(filters.dateFrom, filters.dateTo);
+
+  if (!prisma) {
+    const availableBoats = filters.boatId
+      ? mockBoats.filter((boat) => boat.id === filters.boatId)
+      : [...mockBoats];
+    const activeBookings = mockBookings.filter((booking) => booking.status !== "cancelled");
+
+    return availableBoats.flatMap((boat) =>
+      dateRange.flatMap((date) =>
+        getSupportedTripTypesForBoat(boat)
+          .filter((tripType) => !filters.tripType || tripType === filters.tripType)
+          .map((tripType) => {
+            const booking = activeBookings.find(
+              (item) =>
+                item.boatId === boat.id &&
+                item.date === date &&
+                item.tripType === tripType
+            );
+            const block = mockAvailabilityBlocks.find(
+              (item) =>
+                item.boatId === boat.id &&
+                item.date === date &&
+                item.tripType === tripType
+            );
+
+            return mapMockAvailabilityStateRow(boat, date, tripType, {
+              booking,
+              block
+            });
+          })
+      )
+    );
+  }
+
+  const availableBoats = await prisma.boat.findMany({
+    where: filters.boatId
+      ? {
+          id: filters.boatId
+        }
+      : undefined,
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      supportedTripTypes: {
+        select: {
+          tripType: true
+        }
+      }
+    },
+    orderBy: {
+      name: "asc"
+    }
+  });
+
+  const [activeBookings, availabilityBlocks, slotOccupancies] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        boatId: filters.boatId,
+        tripType: filters.tripType,
+        date: {
+          gte: toUtcDateOnly(filters.dateFrom),
+          lte: toUtcDateOnly(filters.dateTo)
+        },
+        status: {
+          in: ["pending", "confirmed"]
+        }
+      },
+      select: {
+        id: true,
+        boatId: true,
+        date: true,
+        tripType: true,
+        status: true,
+        customerName: true
+      }
+    }),
+    prisma.availabilityBlock.findMany({
+      where: {
+        boatId: filters.boatId,
+        tripType: filters.tripType,
+        date: {
+          gte: toUtcDateOnly(filters.dateFrom),
+          lte: toUtcDateOnly(filters.dateTo)
+        }
+      },
+      select: {
+        id: true,
+        boatId: true,
+        date: true,
+        tripType: true,
+        reason: true,
+        createdByLabel: true
+      }
+    }),
+    prisma.slotOccupancy.findMany({
+      where: {
+        boatId: filters.boatId,
+        tripType: filters.tripType,
+        date: {
+          gte: toUtcDateOnly(filters.dateFrom),
+          lte: toUtcDateOnly(filters.dateTo)
+        }
+      },
+      select: {
+        id: true,
+        boatId: true,
+        date: true,
+        tripType: true,
+        bookingId: true,
+        availabilityBlockId: true
+      }
+    })
+  ]);
+
+  const bookingMap = new Map(
+    activeBookings.map((booking) => [booking.id, booking] as const)
+  );
+  const availabilityBlockMap = new Map(
+    availabilityBlocks.map((block) => [block.id, block] as const)
+  );
+  const slotOccupancyMap = new Map(
+    slotOccupancies.map((occupancy) => {
+      const key = `${occupancy.boatId}:${toDateOnlyString(occupancy.date)}:${occupancy.tripType}`;
+
+      return [key, occupancy] as const;
+    })
+  );
+
+  return availableBoats.flatMap((boat) =>
+    dateRange.flatMap((date) =>
+      boat.supportedTripTypes
+        .map((support) => support.tripType as Booking["tripType"])
+        .filter((tripType) => !filters.tripType || tripType === filters.tripType)
+        .map((tripType) => {
+          const key = `${boat.id}:${date}:${tripType}`;
+          const occupancy = slotOccupancyMap.get(key);
+          const booking =
+            occupancy?.bookingId ? bookingMap.get(occupancy.bookingId) ?? null : null;
+          const block =
+            occupancy?.availabilityBlockId
+              ? availabilityBlockMap.get(occupancy.availabilityBlockId) ?? null
+              : null;
+          const blockedBy = occupancy ? getSlotBlockSourceFromOccupancy(occupancy) : null;
+
+          return {
+            boatId: boat.id,
+            boatName: boat.name,
+            boatSlug: boat.slug,
+            date,
+            tripType,
+            state: getSlotStateFromBlockedBy(blockedBy),
+            bookingId: booking?.id ?? null,
+            bookingStatus: booking?.status ?? null,
+            bookingCustomerName: booking?.customerName ?? null,
+            availabilityBlockId: block?.id ?? null,
+            availabilityBlockReason: block?.reason ?? null,
+            availabilityBlockCreatedByLabel: block?.createdByLabel ?? null,
+            occupancyId: occupancy?.id ?? null
+          };
+        })
+    )
+  );
+}
+
+export async function getAvailabilityBlockById(
+  availabilityBlockId: string
+): Promise<AvailabilityBlock | null> {
+  if (!prisma) {
+    return (
+      mockAvailabilityBlocks.find((block) => block.id === availabilityBlockId) ?? null
+    );
+  }
+
+  const record = await prisma.availabilityBlock.findUnique({
+    where: {
+      id: availabilityBlockId
+    }
+  });
+
+  return record ? mapAvailabilityBlockRecordToDomain(record) : null;
+}
+
 export async function listAvailabilityBlocks(
   limit?: number
 ): Promise<AvailabilityBlock[]> {
@@ -581,6 +878,104 @@ export async function listAvailabilityBlocks(
   });
 
   return records.map(mapAvailabilityBlockRecordToDomain);
+}
+
+export async function createAvailabilityBlock(
+  input: CreateAvailabilityBlockInput
+): Promise<AvailabilityBlockMutationResult> {
+  if (!prisma) {
+    throw new DatabaseWriteUnavailableError();
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const slot = {
+      boatId: input.boatId,
+      date: input.date,
+      tripType: input.tripType
+    };
+
+    await assertBoatSupportsTripType(transaction, slot);
+
+    const slotAvailability = await getSlotAvailabilityStateFromExecutor(
+      transaction,
+      slot
+    );
+
+    if (!slotAvailability.isBookable && slotAvailability.blockedBy) {
+      throw new AvailabilityBlockConflictError(slotAvailability.blockedBy);
+    }
+
+    const blockRecord = await transaction.availabilityBlock.create({
+      data: {
+        boatId: input.boatId,
+        date: toUtcDateOnly(input.date),
+        tripType: input.tripType,
+        reason: input.reason,
+        createdByLabel: input.createdByLabel
+      }
+    });
+
+    try {
+      await transaction.slotOccupancy.create({
+        data: {
+          boatId: input.boatId,
+          date: toUtcDateOnly(input.date),
+          tripType: input.tripType,
+          availabilityBlockId: blockRecord.id
+        }
+      });
+    } catch (error) {
+      if (isSlotOccupancyUniqueConflict(error)) {
+        const refreshedAvailability = await getSlotAvailabilityStateFromExecutor(
+          transaction,
+          slot
+        );
+
+        throw new AvailabilityBlockConflictError(
+          refreshedAvailability.blockedBy ?? "admin"
+        );
+      }
+
+      throw error;
+    }
+
+    return {
+      block: mapAvailabilityBlockRecordToDomain(blockRecord),
+      changed: true
+    };
+  });
+}
+
+export async function removeAvailabilityBlock(
+  availabilityBlockId: string
+): Promise<AvailabilityBlockMutationResult> {
+  if (!prisma) {
+    throw new DatabaseWriteUnavailableError();
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const blockRecord = await getAvailabilityBlockRecordForMutationOrThrow(
+      transaction,
+      availabilityBlockId
+    );
+
+    await transaction.slotOccupancy.deleteMany({
+      where: {
+        availabilityBlockId: blockRecord.id
+      }
+    });
+
+    await transaction.availabilityBlock.delete({
+      where: {
+        id: blockRecord.id
+      }
+    });
+
+    return {
+      block: mapAvailabilityBlockRecordToDomain(blockRecord),
+      changed: true
+    };
+  });
 }
 
 export async function countPendingBookings(): Promise<number> {

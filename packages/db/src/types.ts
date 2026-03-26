@@ -1,4 +1,5 @@
 import type {
+  AvailabilityBlock,
   Boat,
   Booking,
   BookingSource,
@@ -72,5 +73,41 @@ export interface AdminBookingDetail extends AdminBookingListItem {
 
 export interface BookingMutationResult {
   booking: Booking;
+  changed: boolean;
+}
+
+export interface ListAvailabilityStateFilters {
+  boatId?: string;
+  tripType?: TripType;
+  dateFrom: string;
+  dateTo: string;
+}
+
+export interface AvailabilityStateRow {
+  boatId: string;
+  boatName: string;
+  boatSlug: string;
+  date: string;
+  tripType: TripType;
+  state: "free" | "booking" | "admin";
+  bookingId: string | null;
+  bookingStatus: BookingStatus | null;
+  bookingCustomerName: string | null;
+  availabilityBlockId: string | null;
+  availabilityBlockReason: string | null;
+  availabilityBlockCreatedByLabel: string | null;
+  occupancyId: string | null;
+}
+
+export interface CreateAvailabilityBlockInput {
+  boatId: string;
+  date: string;
+  tripType: TripType;
+  reason: string;
+  createdByLabel: string;
+}
+
+export interface AvailabilityBlockMutationResult {
+  block: AvailabilityBlock;
   changed: boolean;
 }

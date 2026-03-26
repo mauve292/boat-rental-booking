@@ -43,6 +43,12 @@ export default async function AdminPage() {
           >
             Open bookings
           </Link>
+          <Link
+            className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+            href="/availability"
+          >
+            Open availability
+          </Link>
         </div>
       </ShellCard>
 
@@ -148,6 +154,14 @@ export default async function AdminPage() {
                   <p className="mt-1 text-sm text-slate-500">
                     {block.reason} - {block.createdByLabel}
                   </p>
+                  <div className="mt-4">
+                    <Link
+                      className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                      href="/availability"
+                    >
+                      Manage availability
+                    </Link>
+                  </div>
                 </div>
               );
             })}

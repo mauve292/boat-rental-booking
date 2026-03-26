@@ -78,6 +78,7 @@ corepack pnpm db:seed
 - Admin email/password sign-up is disabled in runtime. The development admin account is created by the Prisma seed using `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `ADMIN_NAME`.
 - Local admin sign-in lives at `http://localhost:3002/signin`. After seeding, sign in with the credentials from `.env`.
 - Admin booking routes now include `http://localhost:3002/bookings` and `http://localhost:3002/bookings/[bookingId]` inside the protected admin area.
+- Admin availability management now lives at `http://localhost:3002/availability` inside the protected admin area.
 - `packages/domain` contains the shared fleet, price rules, mock bookings, mock availability blocks, booking season config, and pure helpers such as boat lookup, slot keys, seasonal checks, and booking preselection helpers.
 - Boat preselection works through a shared `boat` query param. Example booking path: `/?boat=aurora`.
 - The public site uses shared helpers to link into the booking app with either a preselected boat or a generic booking entry.
@@ -88,6 +89,8 @@ corepack pnpm db:seed
 - New public bookings are created with `status = pending` and `source = booking_app`. Pending bookings occupy the slot immediately through `SlotOccupancy`; cancelled bookings do not.
 - The currently supported booking lifecycle is `pending -> confirmed -> cancelled`. Confirming keeps the existing slot occupancy; cancelling releases the slot in the same transaction as the status change.
 - Admin blocks and active bookings both make a slot unavailable. Public submissions re-check availability on the server and return a user-safe conflict message if the slot was taken first.
+- Admin can now create blocked slots in `/availability`. Blocking a free slot creates both an `AvailabilityBlock` record and its `SlotOccupancy`, which prevents public bookings for that slot.
+- Removing an admin block deletes the linked `SlotOccupancy` and removes the `AvailabilityBlock` record in one transaction, reopening the slot.
 - Payment is still mock-only. The booking UI shows pricing context, but no payment provider is integrated yet.
 - Real booking writes require `DATABASE_URL` so the booking app can create records in Postgres. Without a configured database, reads still fall back to mock data but submission is unavailable.
 - Still intentionally missing: public customer accounts, payment integration, availability-block CRUD, and production notification delivery.

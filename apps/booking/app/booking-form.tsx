@@ -13,7 +13,7 @@ import {
   publicBookingSubmissionInputSchema,
   type PublicBookingSubmissionInput
 } from "@boat/validation";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { submitPublicBooking } from "./actions";
 import {
@@ -31,6 +31,17 @@ type BookingFormProps = {
 };
 
 type FieldName = keyof PublicBookingSubmissionInput;
+type SlotAvailabilityStatus =
+  | {
+      state: "idle" | "loading" | "error";
+      blockedBy: null;
+      message: string | null;
+    }
+  | {
+      state: "ready";
+      blockedBy: "booking" | "admin" | null;
+      message: string;
+    };
 
 const commonInputClasses =
   "mt-1 w-full rounded-lg border px-3 py-2 text-slate-900 outline-none transition focus:border-slate-950";
@@ -87,6 +98,11 @@ export function BookingForm({
   const [email, setEmail] = useState("");
   const [phoneCountryCode, setPhoneCountryCode] = useState("+30");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [slotAvailability, setSlotAvailability] = useState<SlotAvailabilityStatus>({
+    state: "idle",
+    blockedBy: null,
+    message: null
+  });
 
   const selectedBoat = boats.find((boat) => boat.id === boatId) ?? null;
   const selectedPriceRule =
@@ -95,6 +111,79 @@ export function BookingForm({
       : null;
   const isLocked = submissionState.status === "success";
   const visibleTripTypes = selectedBoat?.supportedTripTypes ?? [];
+  const isSubmitDisabled =
+    isLocked ||
+    slotAvailability.state === "loading" ||
+    (slotAvailability.state === "ready" && slotAvailability.blockedBy !== null);
+
+  useEffect(() => {
+    if (!boatId || !tripType || !date) {
+      setSlotAvailability({
+        state: "idle",
+        blockedBy: null,
+        message: null
+      });
+      return;
+    }
+
+    const abortController = new AbortController();
+    setSlotAvailability({
+      state: "loading",
+      blockedBy: null,
+      message: "Checking slot availability..."
+    });
+
+    async function loadSlotAvailability() {
+      try {
+        const searchParams = new URLSearchParams({
+          boatId,
+          date,
+          tripType
+        });
+        const response = await fetch(`/api/slot-availability?${searchParams.toString()}`, {
+          signal: abortController.signal,
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error("Availability lookup failed.");
+        }
+
+        const payload = (await response.json()) as {
+          blockedBy: "booking" | "admin" | null;
+          isBookable: boolean;
+        };
+
+        setSlotAvailability({
+          state: "ready",
+          blockedBy: payload.blockedBy,
+          message:
+            payload.blockedBy === "admin"
+              ? "This slot is currently blocked by the team and cannot be booked."
+              : payload.blockedBy === "booking"
+                ? "This slot is already booked for that date and trip."
+                : "This slot is currently available."
+        });
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        console.error("Public slot availability lookup failed", error);
+        setSlotAvailability({
+          state: "error",
+          blockedBy: null,
+          message: "Live slot availability could not be checked. You can still submit and the server will verify the slot."
+        });
+      }
+    }
+
+    void loadSlotAvailability();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [boatId, tripType, date]);
 
   function clearFieldError(field: FieldName) {
     setClientErrors((currentErrors) => {
@@ -109,6 +198,14 @@ export function BookingForm({
   }
 
   function handleClientValidation(event: React.FormEvent<HTMLFormElement>) {
+    if (
+      slotAvailability.state === "loading" ||
+      (slotAvailability.state === "ready" && slotAvailability.blockedBy !== null)
+    ) {
+      event.preventDefault();
+      return;
+    }
+
     const parsedSubmission = publicBookingSubmissionInputSchema.safeParse({
       boatId,
       tripType,
@@ -370,7 +467,29 @@ export function BookingForm({
               </Pill>
               {date ? <Pill tone="accent">{date}</Pill> : null}
               {tripType ? <Pill>{tripTypeLabels[tripType]}</Pill> : null}
+              {slotAvailability.state === "ready" ? (
+                <Pill
+                  tone={
+                    slotAvailability.blockedBy === null
+                      ? "success"
+                      : slotAvailability.blockedBy === "admin"
+                        ? "warning"
+                        : "neutral"
+                  }
+                >
+                  {slotAvailability.blockedBy === null
+                    ? "Live slot: Available"
+                    : slotAvailability.blockedBy === "admin"
+                      ? "Live slot: Admin blocked"
+                      : "Live slot: Booked"}
+                </Pill>
+              ) : null}
             </div>
+            {slotAvailability.message ? (
+              <p className="mt-4 text-sm leading-6 text-slate-600">
+                {slotAvailability.message}
+              </p>
+            ) : null}
             <p className="mt-4 text-sm leading-6 text-slate-600">
               Payment remains mock-only in this step. Submitting this form creates a real
               pending booking request and reserves the slot until the team reviews it.
@@ -379,7 +498,7 @@ export function BookingForm({
         </div>
 
         <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
-          <SubmitButton disabled={isLocked} />
+          <SubmitButton disabled={isSubmitDisabled} />
           <p className="text-sm text-slate-500">
             The team will review pending requests before confirming the booking.
           </p>

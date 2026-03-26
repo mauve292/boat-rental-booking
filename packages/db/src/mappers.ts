@@ -1,4 +1,11 @@
-import type { Boat, Booking, AvailabilityBlock, PriceRule } from "@boat/domain";
+import {
+  createBookingSeasonSettings,
+  type AppSettings,
+  type AvailabilityBlock,
+  type Boat,
+  type Booking,
+  type PriceRule
+} from "@boat/domain";
 import { Prisma } from "@prisma/client";
 
 export const boatQuery = Prisma.validator<Prisma.BoatDefaultArgs>()({
@@ -124,3 +131,18 @@ export function mapPriceRuleRecordToDomain(
   };
 }
 
+export function mapAppSettingsRecordToDomain(
+  record: Pick<
+    Prisma.AppSettingsGetPayload<Record<string, never>>,
+    "bookingSeasonStartMonth" | "bookingSeasonEndMonth" | "contactEmail" | "updatedAt"
+  >
+): AppSettings {
+  return {
+    bookingSeason: createBookingSeasonSettings(
+      record.bookingSeasonStartMonth,
+      record.bookingSeasonEndMonth
+    ),
+    contactEmail: record.contactEmail,
+    updatedAt: record.updatedAt.toISOString()
+  };
+}

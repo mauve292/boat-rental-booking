@@ -109,6 +109,12 @@ export interface BookingSeasonSettings {
   label: string;
 }
 
+export interface AppSettings {
+  bookingSeason: BookingSeasonSettings;
+  contactEmail: string;
+  updatedAt: string;
+}
+
 export interface PhoneCountryOption {
   code: string;
   label: string;

@@ -3,6 +3,7 @@ import {
   bookingQueryKeys,
   bookingRoutes,
   bookingSeason,
+  createBookingSeasonSettings,
   tripTypes
 } from "./constants";
 import {
@@ -196,7 +197,14 @@ export function formatCurrencyAmount(
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2
   }).format(amount);
 }
 
+export function getBookingSeasonFromMonthRange(
+  startMonth: number,
+  endMonth: number
+): BookingSeasonSettings {
+  return createBookingSeasonSettings(startMonth, endMonth);
+}

@@ -2,13 +2,14 @@
 
 import {
   createPendingBooking,
+  getAppSettings,
   DatabaseWriteUnavailableError,
   SlotUnavailableError,
   UnsupportedBoatTripTypeError
 } from "@boat/db";
 import { revalidatePath } from "next/cache";
 import {
-  publicBookingSubmissionInputSchema,
+  createPublicBookingSubmissionInputSchema,
   type PublicBookingSubmissionInput
 } from "@boat/validation";
 import type { BookingSubmissionState } from "./booking-form-state";
@@ -23,7 +24,10 @@ export async function submitPublicBooking(
   _previousState: BookingSubmissionState,
   formData: FormData
 ): Promise<BookingSubmissionState> {
-  const parsedSubmission = publicBookingSubmissionInputSchema.safeParse({
+  const appSettings = await getAppSettings();
+  const parsedSubmission = createPublicBookingSubmissionInputSchema(
+    appSettings.bookingSeason
+  ).safeParse({
     boatId: getFormValue(formData, "boatId"),
     tripType: getFormValue(formData, "tripType"),
     date: getFormValue(formData, "date"),

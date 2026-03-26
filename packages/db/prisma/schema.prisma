@@ -25,6 +25,15 @@ enum BookingSource {
   admin_manual
 }
 
+model AppSettings {
+  id                      Int      @id @default(1)
+  bookingSeasonStartMonth Int
+  bookingSeasonEndMonth   Int
+  contactEmail            String   @db.VarChar(160)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique

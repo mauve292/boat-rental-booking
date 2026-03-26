@@ -1,6 +1,7 @@
 import {
   availabilityBlocks,
   boatAmenityLabels,
+  bookingSeason,
   boats,
   priceRules,
   sampleBookings
@@ -12,6 +13,7 @@ const prisma = new PrismaClient();
 const defaultAdminEmail = "admin@boatrental.local";
 const defaultAdminPassword = "AdminDemo123!";
 const defaultAdminName = "Boat Rental Admin";
+const defaultContactEmail = "bookings@boatrental.local";
 
 function toUtcDateOnly(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
@@ -89,6 +91,31 @@ async function seedAdminUser() {
 
 async function main() {
   await seedAdminUser();
+
+  await prisma.appSettings.upsert({
+    where: {
+      id: 1
+    },
+    update: {
+      bookingSeasonStartMonth: bookingSeason.startMonth,
+      bookingSeasonEndMonth: bookingSeason.endMonth,
+      contactEmail: (
+        process.env.BUSINESS_CONTACT_EMAIL ??
+        process.env.ADMIN_EMAIL ??
+        defaultContactEmail
+      ).toLowerCase()
+    },
+    create: {
+      id: 1,
+      bookingSeasonStartMonth: bookingSeason.startMonth,
+      bookingSeasonEndMonth: bookingSeason.endMonth,
+      contactEmail: (
+        process.env.BUSINESS_CONTACT_EMAIL ??
+        process.env.ADMIN_EMAIL ??
+        defaultContactEmail
+      ).toLowerCase()
+    }
+  });
 
   const uniqueAmenities = Array.from(
     new Set(boats.flatMap((boat) => boat.amenities))

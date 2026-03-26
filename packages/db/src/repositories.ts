@@ -1,6 +1,8 @@
 import {
   availabilityBlocks as mockAvailabilityBlocks,
   boats as mockBoats,
+  bookingSeason as defaultBookingSeason,
+  createBookingSeasonSettings,
   getBoatById as getMockBoatById,
   getBoatBySlug as getMockBoatBySlug,
   getPriceForBoatAndTripType as getMockPriceForBoatAndTripType,
@@ -8,13 +10,20 @@ import {
   getSupportedTripTypesForBoat,
   priceRules as mockPriceRules,
   sampleBookings as mockBookings,
-  summarizePendingBookingsCount
+  summarizePendingBookingsCount,
+  type AppSettings,
+  type AvailabilityBlock,
+  type Boat,
+  type Booking,
+  type PriceRule,
+  tripTypeLabels,
+  tripTypes
 } from "@boat/domain";
-import type { Boat, Booking, AvailabilityBlock, PriceRule } from "@boat/domain";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "./client";
 import {
   boatQuery,
+  mapAppSettingsRecordToDomain,
   mapAvailabilityBlockRecordToDomain,
   mapBoatRecordToDomain,
   mapBookingRecordToDomain,
@@ -28,20 +37,115 @@ import type {
   AdminBookingDetail,
   AdminBookingListItem,
   AvailabilitySnapshotRow,
+  AppSettingsRecord,
   BookingMutationResult,
   CreateAvailabilityBlockInput,
   CreatePendingBookingInput,
   ListAvailabilityStateFilters,
   ListBookingsFilters,
+  PricingMatrixRow,
   SlotAvailabilityState,
-  SlotBlockSource
+  SlotBlockSource,
+  UpdateAppSettingsInput,
+  UpdatePriceRuleInput
 } from "./types";
 
 const defaultPublicPartySize = 1;
+const defaultContactEmail = "bookings@boatrental.local";
 
 type BookingWriteExecutor = Prisma.TransactionClient | PrismaClient;
 type BookingTransitionAction = "confirm" | "cancel";
 type SlotState = AvailabilityStateRow["state"];
+
+function getDefaultAppSettings(): AppSettingsRecord {
+  const contactEmail = (
+    process.env.BUSINESS_CONTACT_EMAIL ??
+    process.env.ADMIN_EMAIL ??
+    defaultContactEmail
+  )
+    .trim()
+    .toLowerCase();
+
+  return {
+    bookingSeason: defaultBookingSeason,
+    contactEmail,
+    updatedAt: new Date(0).toISOString()
+  };
+}
+
+function isValidMonth(value: number): boolean {
+  return Number.isInteger(value) && value >= 1 && value <= 12;
+}
+
+function isValidPriceAmount(value: number): boolean {
+  return (
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 999999.99 &&
+    Math.round(value * 100) === value * 100
+  );
+}
+
+function normalizeAppSettingsRecord(record: {
+  bookingSeasonStartMonth: number;
+  bookingSeasonEndMonth: number;
+  contactEmail: string;
+  updatedAt: Date;
+}): AppSettingsRecord {
+  const contactEmail = record.contactEmail.trim().toLowerCase();
+
+  if (
+    !isValidMonth(record.bookingSeasonStartMonth) ||
+    !isValidMonth(record.bookingSeasonEndMonth) ||
+    record.bookingSeasonStartMonth > record.bookingSeasonEndMonth ||
+    contactEmail.length === 0
+  ) {
+    throw new AppSettingsConfigurationError();
+  }
+
+  return {
+    bookingSeason: createBookingSeasonSettings(
+      record.bookingSeasonStartMonth,
+      record.bookingSeasonEndMonth
+    ),
+    contactEmail,
+    updatedAt: record.updatedAt.toISOString()
+  };
+}
+
+function buildPriceRuleLabel(
+  boatName: string,
+  tripType: PriceRule["tripType"]
+): string {
+  return `${boatName} ${tripTypeLabels[tripType]}`;
+}
+
+function buildPricingMatrix(
+  boats: Boat[],
+  rules: PriceRule[]
+): PricingMatrixRow[] {
+  return boats.map((boat) => ({
+    boatId: boat.id,
+    boatName: boat.name,
+    boatSlug: boat.slug,
+    prices: tripTypes.map((tripType) => {
+      const matchingRule =
+        rules.find(
+          (priceRule) =>
+            priceRule.boatId === boat.id && priceRule.tripType === tripType
+        ) ?? null;
+
+      return {
+        tripType,
+        priceRuleId: matchingRule?.id ?? null,
+        amount: matchingRule?.amount ?? null,
+        currency: matchingRule?.currency ?? "EUR",
+        label: matchingRule?.label ?? null,
+        isSupported: boat.supportedTripTypes.includes(tripType)
+      };
+    })
+  }));
+}
 
 function mapAdminBookingListItem(record: {
   id: string;
@@ -390,6 +494,20 @@ export class AvailabilityBlockConflictError extends Error {
   }
 }
 
+export class InvalidPriceRuleAmountError extends Error {
+  constructor() {
+    super("The provided price amount is invalid.");
+    this.name = "InvalidPriceRuleAmountError";
+  }
+}
+
+export class AppSettingsConfigurationError extends Error {
+  constructor() {
+    super("The application settings are missing or invalid.");
+    this.name = "AppSettingsConfigurationError";
+  }
+}
+
 function sortByCreatedAtDescending<T extends { createdAt: string }>(items: T[]): T[] {
   return [...items].sort((leftItem, rightItem) =>
     rightItem.createdAt.localeCompare(leftItem.createdAt)
@@ -532,6 +650,157 @@ export async function getPriceForBoatAndTripType(
   });
 
   return record ? mapPriceRuleRecordToDomain(record) : null;
+}
+
+export async function listPricingMatrix(): Promise<PricingMatrixRow[]> {
+  if (!prisma) {
+    return buildPricingMatrix(mockBoats, mockPriceRules);
+  }
+
+  const records = await prisma.boat.findMany({
+    ...boatQuery,
+    include: {
+      ...boatQuery.include,
+      priceRules: {
+        orderBy: {
+          tripType: "asc"
+        }
+      }
+    },
+    orderBy: {
+      name: "asc"
+    }
+  });
+
+  return buildPricingMatrix(
+    records.map(mapBoatRecordToDomain),
+    records.flatMap((boatRecord) =>
+      boatRecord.priceRules.map(mapPriceRuleRecordToDomain)
+    )
+  );
+}
+
+export async function updatePriceRule(
+  input: UpdatePriceRuleInput
+): Promise<PriceRule> {
+  if (!prisma) {
+    throw new DatabaseWriteUnavailableError();
+  }
+
+  if (!isValidPriceAmount(input.amount)) {
+    throw new InvalidPriceRuleAmountError();
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    await assertBoatSupportsTripType(transaction, {
+      boatId: input.boatId,
+      tripType: input.tripType
+    });
+
+    const boat = await transaction.boat.findUnique({
+      where: {
+        id: input.boatId
+      },
+      select: {
+        name: true
+      }
+    });
+
+    if (!boat) {
+      throw new UnsupportedBoatTripTypeError();
+    }
+
+    const record = await transaction.priceRule.upsert({
+      where: {
+        boatId_tripType: {
+          boatId: input.boatId,
+          tripType: input.tripType
+        }
+      },
+      update: {
+        amount: new Prisma.Decimal(input.amount),
+        currency: input.currency ?? "EUR",
+        label:
+          input.label?.trim() ||
+          buildPriceRuleLabel(boat.name, input.tripType)
+      },
+      create: {
+        boatId: input.boatId,
+        tripType: input.tripType,
+        amount: new Prisma.Decimal(input.amount),
+        currency: input.currency ?? "EUR",
+        label:
+          input.label?.trim() ||
+          buildPriceRuleLabel(boat.name, input.tripType)
+      }
+    });
+
+    return mapPriceRuleRecordToDomain(record);
+  });
+}
+
+export async function getAppSettings(): Promise<AppSettingsRecord> {
+  if (!prisma) {
+    return getDefaultAppSettings();
+  }
+
+  const record = await prisma.appSettings.findUnique({
+    where: {
+      id: 1
+    }
+  });
+
+  if (!record) {
+    return getDefaultAppSettings();
+  }
+
+  try {
+    return normalizeAppSettingsRecord(record);
+  } catch (error) {
+    if (error instanceof AppSettingsConfigurationError) {
+      return getDefaultAppSettings();
+    }
+
+    throw error;
+  }
+}
+
+export async function updateAppSettings(
+  input: UpdateAppSettingsInput
+): Promise<AppSettings> {
+  if (!prisma) {
+    throw new DatabaseWriteUnavailableError();
+  }
+
+  const contactEmail = input.contactEmail.trim().toLowerCase();
+
+  if (
+    !isValidMonth(input.bookingSeasonStartMonth) ||
+    !isValidMonth(input.bookingSeasonEndMonth) ||
+    input.bookingSeasonStartMonth > input.bookingSeasonEndMonth ||
+    contactEmail.length === 0
+  ) {
+    throw new AppSettingsConfigurationError();
+  }
+
+  const record = await prisma.appSettings.upsert({
+    where: {
+      id: 1
+    },
+    update: {
+      bookingSeasonStartMonth: input.bookingSeasonStartMonth,
+      bookingSeasonEndMonth: input.bookingSeasonEndMonth,
+      contactEmail
+    },
+    create: {
+      id: 1,
+      bookingSeasonStartMonth: input.bookingSeasonStartMonth,
+      bookingSeasonEndMonth: input.bookingSeasonEndMonth,
+      contactEmail
+    }
+  });
+
+  return mapAppSettingsRecordToDomain(record);
 }
 
 export async function listRecentBookings(limit = 3): Promise<Booking[]> {

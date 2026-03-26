@@ -1,16 +1,17 @@
 "use client";
 
 import {
-  bookingSeason,
   formatCurrencyAmount,
   getPriceForBoatAndTripType,
   phoneCountryOptions,
+  type Boat,
+  type BookingSeasonSettings,
+  type PriceRule,
   tripTypeLabels
 } from "@boat/domain";
-import type { Boat, PriceRule } from "@boat/domain";
 import { Pill } from "@boat/ui";
 import {
-  publicBookingSubmissionInputSchema,
+  createPublicBookingSubmissionInputSchema,
   type PublicBookingSubmissionInput
 } from "@boat/validation";
 import { useActionState, useEffect, useState } from "react";
@@ -28,6 +29,7 @@ type BookingFormProps = {
   initialDate: string;
   minDate: string;
   maxDate: string;
+  seasonSettings: BookingSeasonSettings;
 };
 
 type FieldName = keyof PublicBookingSubmissionInput;
@@ -82,7 +84,8 @@ export function BookingForm({
   initialBoatId,
   initialDate,
   minDate,
-  maxDate
+  maxDate,
+  seasonSettings
 }: BookingFormProps) {
   const [submissionState, formAction] = useActionState(
     submitPublicBooking,
@@ -103,6 +106,9 @@ export function BookingForm({
     blockedBy: null,
     message: null
   });
+  const submissionSchema = createPublicBookingSubmissionInputSchema(
+    seasonSettings
+  );
 
   const selectedBoat = boats.find((boat) => boat.id === boatId) ?? null;
   const selectedPriceRule =
@@ -206,7 +212,7 @@ export function BookingForm({
       return;
     }
 
-    const parsedSubmission = publicBookingSubmissionInputSchema.safeParse({
+    const parsedSubmission = submissionSchema.safeParse({
       boatId,
       tripType,
       date,
@@ -367,7 +373,7 @@ export function BookingForm({
             value={date}
           />
           <p className="mt-1 text-xs text-slate-500">
-            Season dates run from {minDate} to {maxDate} ({bookingSeason.label}).
+            Season dates run from {minDate} to {maxDate} ({seasonSettings.label}).
           </p>
           {dateError ? <p className="mt-1 text-sm text-rose-700">{dateError}</p> : null}
         </label>

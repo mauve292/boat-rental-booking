@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { adminNavItems } from "@boat/domain";
 import { Pill } from "@boat/ui";
 import { requireAdminSession } from "@/lib/session";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -28,24 +29,17 @@ export default async function ProtectedLayout({
               <Pill tone="accent">{session.user.email}</Pill>
             </div>
             <nav className="flex flex-wrap gap-2 pt-1">
-              <Link
-                className="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
-                href="/"
-              >
-                Dashboard
-              </Link>
-              <Link
-                className="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
-                href="/bookings"
-              >
-                Bookings
-              </Link>
-              <Link
-                className="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
-                href="/availability"
-              >
-                Availability
-              </Link>
+              {adminNavItems
+                .filter((item) => item.id !== "notifications")
+                .map((item) => (
+                  <Link
+                    key={item.id}
+                    className="inline-flex items-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                    href={item.href}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
             </nav>
           </div>
           <SignOutButton />

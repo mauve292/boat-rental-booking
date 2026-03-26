@@ -34,11 +34,43 @@ export const boatAmenityValues = [
   "deck_shower"
 ] as const satisfies readonly BoatAmenity[];
 
-export const bookingSeason = {
-  startMonth: 5,
-  endMonth: 9,
-  label: "May through September"
-} satisfies BookingSeasonSettings;
+const monthLabels = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+] as const;
+
+export function getMonthLabel(month: number): string {
+  return monthLabels[month - 1] ?? `Month ${month}`;
+}
+
+export function createBookingSeasonSettings(
+  startMonth: number,
+  endMonth: number
+): BookingSeasonSettings {
+  const startMonthLabel = getMonthLabel(startMonth);
+  const endMonthLabel = getMonthLabel(endMonth);
+
+  return {
+    startMonth,
+    endMonth,
+    label:
+      startMonth === endMonth
+        ? startMonthLabel
+        : `${startMonthLabel} through ${endMonthLabel}`
+  };
+}
+
+export const bookingSeason = createBookingSeasonSettings(5, 9);
 
 export const bookingQueryKeys = {
   boat: "boat"
@@ -97,8 +129,8 @@ export const adminNavItems = [
   {
     id: "pricing",
     label: "Pricing",
-    href: "#pricing",
-    description: "Future home for seasonal and boat-specific pricing rules."
+    href: "/pricing",
+    description: "Review and update boat pricing for each trip type."
   },
   {
     id: "notifications",
@@ -109,7 +141,7 @@ export const adminNavItems = [
   {
     id: "settings",
     label: "Settings",
-    href: "#settings",
-    description: "Operational settings, season controls, and integrations later."
+    href: "/settings",
+    description: "Phase-1 operational settings for booking season and contact email."
   }
 ] as const satisfies readonly AdminNavItem[];

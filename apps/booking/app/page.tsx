@@ -1,14 +1,19 @@
 import {
   bookingQueryKeys,
-  bookingSeason,
   formatCurrencyAmount,
   getBoatBookingHref,
   getPriceForBoatAndTripType,
   getSupportedTripTypesForBoat,
   parseSelectedBoatFromSearchParams,
+  type BookingSeasonSettings,
   tripTypeLabels
 } from "@boat/domain";
-import { getAvailabilitySnapshot, listBoats, listPriceRules } from "@boat/db";
+import {
+  getAppSettings,
+  getAvailabilitySnapshot,
+  listBoats,
+  listPriceRules
+} from "@boat/db";
 import type { SearchParamsRecord } from "@boat/types";
 import { Pill, ShellCard } from "@boat/ui";
 import { parseBoatQueryParam } from "@boat/validation";
@@ -21,20 +26,21 @@ type BookingPageProps = {
   searchParams: Promise<SearchParamsRecord>;
 };
 
-function getSeasonDateBounds(referenceDate: Date): {
+function getSeasonDateBounds(
+  referenceDate: Date,
+  season: BookingSeasonSettings
+): {
   minDate: string;
   maxDate: string;
   initialDate: string;
 } {
   const referenceMonth = referenceDate.getUTCMonth() + 1;
   const seasonYear =
-    referenceMonth > bookingSeason.endMonth
+    referenceMonth > season.endMonth
       ? referenceDate.getUTCFullYear() + 1
       : referenceDate.getUTCFullYear();
-  const minDate = `${seasonYear}-${String(bookingSeason.startMonth).padStart(2, "0")}-01`;
-  const maxDate = new Date(
-    Date.UTC(seasonYear, bookingSeason.endMonth, 0)
-  )
+  const minDate = `${seasonYear}-${String(season.startMonth).padStart(2, "0")}-01`;
+  const maxDate = new Date(Date.UTC(seasonYear, season.endMonth, 0))
     .toISOString()
     .slice(0, 10);
   const today = referenceDate.toISOString().slice(0, 10);
@@ -52,7 +58,11 @@ export default async function BookingPage({
   searchParams
 }: BookingPageProps) {
   const resolvedSearchParams = await searchParams;
-  const [boats, priceRules] = await Promise.all([listBoats(), listPriceRules()]);
+  const [boats, priceRules, appSettings] = await Promise.all([
+    listBoats(),
+    listPriceRules(),
+    getAppSettings()
+  ]);
   const rawBoatSlug = parseBoatQueryParam(resolvedSearchParams);
   const selectedBoatState = parseSelectedBoatFromSearchParams(
     resolvedSearchParams,
@@ -60,7 +70,10 @@ export default async function BookingPage({
   );
   const selectedBoat = selectedBoatState.boat;
   const visibleTripTypes = getSupportedTripTypesForBoat(selectedBoat);
-  const { initialDate, minDate, maxDate } = getSeasonDateBounds(new Date());
+  const { initialDate, minDate, maxDate } = getSeasonDateBounds(
+    new Date(),
+    appSettings.bookingSeason
+  );
   const availabilitySnapshot = await getAvailabilitySnapshot({
     date: initialDate,
     boatId: selectedBoat?.id
@@ -79,7 +92,7 @@ export default async function BookingPage({
           ) : (
             <Pill>Manual boat selection enabled</Pill>
           )}
-          <Pill tone="success">Season: {bookingSeason.label}</Pill>
+          <Pill tone="success">Season: {appSettings.bookingSeason.label}</Pill>
           <Pill tone="accent">New requests start as pending</Pill>
           {rawBoatSlug && !selectedBoatState.isValid ? (
             <Pill tone="warning">Unknown boat slug: {rawBoatSlug}</Pill>
@@ -220,6 +233,7 @@ export default async function BookingPage({
             maxDate={maxDate}
             minDate={minDate}
             priceRules={priceRules}
+            seasonSettings={appSettings.bookingSeason}
           />
         </ShellCard>
       </section>

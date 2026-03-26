@@ -1,9 +1,12 @@
 import type {
+  AppSettings,
   AvailabilityBlock,
   Boat,
   Booking,
   BookingSource,
   BookingStatus,
+  CurrencyCode,
+  PriceRule,
   TripType
 } from "@boat/domain";
 
@@ -111,3 +114,35 @@ export interface AvailabilityBlockMutationResult {
   block: AvailabilityBlock;
   changed: boolean;
 }
+
+export interface PricingMatrixCell {
+  tripType: TripType;
+  priceRuleId: string | null;
+  amount: number | null;
+  currency: CurrencyCode;
+  label: string | null;
+  isSupported: boolean;
+}
+
+export interface PricingMatrixRow {
+  boatId: string;
+  boatName: string;
+  boatSlug: string;
+  prices: PricingMatrixCell[];
+}
+
+export interface UpdatePriceRuleInput {
+  boatId: string;
+  tripType: PriceRule["tripType"];
+  amount: number;
+  currency?: CurrencyCode;
+  label?: string;
+}
+
+export interface UpdateAppSettingsInput {
+  bookingSeasonStartMonth: number;
+  bookingSeasonEndMonth: number;
+  contactEmail: string;
+}
+
+export type AppSettingsRecord = AppSettings;

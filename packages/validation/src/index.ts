@@ -3,6 +3,7 @@ import {
   bookingQueryKeys,
   bookingStatusValues,
   isDateWithinSeason,
+  type BookingSeasonSettings,
   phoneCountryCodeValues,
   tripTypes
 } from "@boat/domain";
@@ -95,47 +96,55 @@ export const bookingFormDraftSchema = z.object({
   notes: z.string().trim().max(500).optional()
 });
 
-export const publicBookingSubmissionInputSchema = z.object({
-  boatId: z.string().trim().min(1, "Select a boat."),
-  tripType: tripTypeSchema,
-  date: isoDateSchema,
-  fullName: z
-    .string()
-    .trim()
-    .min(2, "Enter your full name.")
-    .max(120, "Full name is too long."),
-  email: z
-    .string()
-    .trim()
-    .email("Enter a valid email address.")
-    .max(160, "Email is too long."),
-  phoneCountryCode: phoneCountryCodeSchema,
-  phoneNumber: phoneLocalNumberSchema
-})
-.superRefine((value, context) => {
-  if (!isDateWithinSeason(value.date)) {
-    context.addIssue({
-      code: "custom",
-      message: `Bookings are available only during ${bookingSeason.label}.`,
-      path: ["date"]
-    });
-  }
-})
-.transform((value) => {
-  const phoneCountryCode = value.phoneCountryCode.trim();
-  const phoneNumber = normalizeWhitespace(value.phoneNumber);
+export function createPublicBookingSubmissionInputSchema(
+  season: BookingSeasonSettings = bookingSeason
+) {
+  return z
+    .object({
+      boatId: z.string().trim().min(1, "Select a boat."),
+      tripType: tripTypeSchema,
+      date: isoDateSchema,
+      fullName: z
+        .string()
+        .trim()
+        .min(2, "Enter your full name.")
+        .max(120, "Full name is too long."),
+      email: z
+        .string()
+        .trim()
+        .email("Enter a valid email address.")
+        .max(160, "Email is too long."),
+      phoneCountryCode: phoneCountryCodeSchema,
+      phoneNumber: phoneLocalNumberSchema
+    })
+    .superRefine((value, context) => {
+      if (!isDateWithinSeason(value.date, season)) {
+        context.addIssue({
+          code: "custom",
+          message: `Bookings are available only during ${season.label}.`,
+          path: ["date"]
+        });
+      }
+    })
+    .transform((value) => {
+      const phoneCountryCode = value.phoneCountryCode.trim();
+      const phoneNumber = normalizeWhitespace(value.phoneNumber);
 
-  return {
-    boatId: value.boatId.trim(),
-    tripType: value.tripType,
-    date: value.date,
-    fullName: normalizeWhitespace(value.fullName),
-    email: value.email.trim().toLowerCase(),
-    phoneCountryCode,
-    phoneNumber,
-    phone: `${phoneCountryCode} ${phoneNumber}`
-  };
-});
+      return {
+        boatId: value.boatId.trim(),
+        tripType: value.tripType,
+        date: value.date,
+        fullName: normalizeWhitespace(value.fullName),
+        email: value.email.trim().toLowerCase(),
+        phoneCountryCode,
+        phoneNumber,
+        phone: `${phoneCountryCode} ${phoneNumber}`
+      };
+    });
+}
+
+export const publicBookingSubmissionInputSchema =
+  createPublicBookingSubmissionInputSchema();
 
 export const bookingSearchParamsSchema = z.object({
   [bookingQueryKeys.boat]: z.string().trim().min(1).optional()

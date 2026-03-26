@@ -3,11 +3,13 @@ import {
   bookingSourceLabels,
   bookingStatusLabels,
   getBoatById,
+  getMonthLabel,
   notificationSummaryMock,
   tripTypeLabels
 } from "@boat/domain";
 import {
   countPendingBookings,
+  getAppSettings,
   listAvailabilityBlocks,
   listBoats,
   listRecentBookings
@@ -16,13 +18,19 @@ import { Pill, ShellCard } from "@boat/ui";
 import Link from "next/link";
 
 export default async function AdminPage() {
-  const [boats, pendingBookingsCount, recentBookings, availabilityBlocks] =
-    await Promise.all([
-      listBoats(),
-      countPendingBookings(),
-      listRecentBookings(3),
-      listAvailabilityBlocks(3)
-    ]);
+  const [
+    boats,
+    pendingBookingsCount,
+    recentBookings,
+    availabilityBlocks,
+    appSettings
+  ] = await Promise.all([
+    listBoats(),
+    countPendingBookings(),
+    listRecentBookings(3),
+    listAvailabilityBlocks(3),
+    getAppSettings()
+  ]);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-16">
@@ -37,6 +45,7 @@ export default async function AdminPage() {
             {notificationSummaryMock.total} notification items
           </Pill>
           <Pill>{notificationSummaryMock.blockedSlots} blocked slots</Pill>
+          <Pill tone="success">Season: {appSettings.bookingSeason.label}</Pill>
           <Link
             className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
             href="/bookings"
@@ -48,6 +57,18 @@ export default async function AdminPage() {
             href="/availability"
           >
             Open availability
+          </Link>
+          <Link
+            className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+            href="/pricing"
+          >
+            Open pricing
+          </Link>
+          <Link
+            className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+            href="/settings"
+          >
+            Open settings
           </Link>
         </div>
       </ShellCard>
@@ -193,6 +214,49 @@ export default async function AdminPage() {
           ))}
         </ul>
       </ShellCard>
+
+      <section className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <ShellCard
+          eyebrow="Pricing"
+          title="Phase-1 pricing"
+          description="Boat and trip-type pricing is now managed from the admin app and read live by the public booking page."
+        >
+          <p className="text-sm leading-6 text-slate-600">
+            Public booking prices reflect the saved boat and trip type rules in
+            the database. Use the pricing route for direct updates.
+          </p>
+          <div className="mt-4">
+            <Link
+              className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+              href="/pricing"
+            >
+              Manage pricing
+            </Link>
+          </div>
+        </ShellCard>
+
+        <ShellCard
+          eyebrow="Settings"
+          title="Operational settings"
+          description="Booking season bounds and the main contact email now have a DB-backed admin home."
+        >
+          <div className="space-y-2 text-sm text-slate-600">
+            <p>
+              Season months: {getMonthLabel(appSettings.bookingSeason.startMonth)} to{" "}
+              {getMonthLabel(appSettings.bookingSeason.endMonth)}
+            </p>
+            <p>Contact email: {appSettings.contactEmail}</p>
+          </div>
+          <div className="mt-4">
+            <Link
+              className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+              href="/settings"
+            >
+              Manage settings
+            </Link>
+          </div>
+        </ShellCard>
+      </section>
     </main>
   );
 }

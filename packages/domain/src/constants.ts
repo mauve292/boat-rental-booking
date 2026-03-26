@@ -135,7 +135,7 @@ export const adminNavItems = [
   {
     id: "notifications",
     label: "Notifications",
-    href: "#notifications",
+    href: "/#notifications",
     description: "Badge-ready alerts for pending work."
   },
   {

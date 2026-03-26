@@ -16,7 +16,7 @@ import {
   listPriceRules
 } from "@boat/db";
 import type { SearchParamsRecord } from "@boat/types";
-import { Pill, ShellCard } from "@boat/ui";
+import { EmptyState, Pill, ShellCard, StatCard } from "@boat/ui";
 import { parseBoatQueryParam } from "@boat/validation";
 import Link from "next/link";
 import { BookingForm } from "./booking-form";
@@ -82,32 +82,83 @@ export default async function BookingPage({
         boatId: selectedBoat?.id
       })
     : [];
+  const visiblePricingBoats = selectedBoat ? [selectedBoat] : boats;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-16">
-      <ShellCard
-        eyebrow="Booking App"
-        title="Boat Booking"
-        description="Public booking requests now submit server-side, create real pending bookings, and reserve their slot immediately with SlotOccupancy."
-      >
-        <div className="flex flex-wrap gap-3">
-          {selectedBoat ? (
-            <Pill tone="accent">Preselected: {selectedBoat.name}</Pill>
-          ) : (
-            <Pill>Manual boat selection enabled</Pill>
-          )}
-          <Pill tone="success">Season: {appSettings.bookingSeason.label}</Pill>
-          <Pill tone="accent">New requests start as pending</Pill>
-          <Pill tone={bookingPersistenceAvailable ? "success" : "warning"}>
-            {bookingPersistenceAvailable
-              ? "Live booking persistence enabled"
-              : "Booking persistence unavailable"}
-          </Pill>
-          {rawBoatSlug && !selectedBoatState.isValid ? (
-            <Pill tone="warning">Unknown boat slug: {rawBoatSlug}</Pill>
-          ) : null}
+      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <ShellCard
+          eyebrow="Booking App"
+          title="Reserve a boat in a few clear steps"
+          description="The public flow stays simple for the guest but now writes a real pending booking, locks the slot immediately, and gives the admin team room to confirm manually."
+        >
+          <div className="space-y-6">
+            <div className="flex flex-wrap gap-3">
+              {selectedBoat ? (
+                <Pill tone="accent">Preselected: {selectedBoat.name}</Pill>
+              ) : (
+                <Pill>Manual boat selection enabled</Pill>
+              )}
+              <Pill tone="success">Season: {appSettings.bookingSeason.label}</Pill>
+              <Pill tone="accent">Requests start as pending</Pill>
+              <Pill tone={bookingPersistenceAvailable ? "success" : "warning"}>
+                {bookingPersistenceAvailable
+                  ? "Live booking persistence enabled"
+                  : "Booking persistence unavailable"}
+              </Pill>
+              {rawBoatSlug && !selectedBoatState.isValid ? (
+                <Pill tone="warning">Unknown boat slug: {rawBoatSlug}</Pill>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-sm font-semibold text-slate-900">How the flow works</p>
+                <ol className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
+                  <li>1. Choose the boat, date, and trip type.</li>
+                  <li>2. Review live slot status and the saved price.</li>
+                  <li>3. Submit once to create a pending booking request.</li>
+                </ol>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-sm font-semibold text-slate-900">Demo-ready notes</p>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Payment stays mock-only in this phase. Availability is still enforced for real, including admin blocks and pending bookings.
+                </p>
+              </div>
+            </div>
+          </div>
+        </ShellCard>
+
+        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+          <StatCard
+            detail={`Selectable dates currently run from ${minDate} through ${maxDate}.`}
+            label="Season Window"
+            tone="success"
+            value={appSettings.bookingSeason.label}
+          />
+          <StatCard
+            detail={
+              selectedBoat
+                ? `${selectedBoat.name} is ready to book with a preselected query param.`
+                : "Visitors can arrive with or without a boat preselected."
+            }
+            label="Boat Selection"
+            tone="accent"
+            value={selectedBoat ? selectedBoat.name : "Any boat"}
+          />
+          <StatCard
+            detail={
+              bookingPersistenceAvailable
+                ? "Submission, slot checks, and pending-booking creation are live."
+                : "The page still renders, but real booking writes stay disabled."
+            }
+            label="Submission"
+            tone={bookingPersistenceAvailable ? "success" : "warning"}
+            value={bookingPersistenceAvailable ? "Live" : "Disabled"}
+          />
         </div>
-      </ShellCard>
+      </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <ShellCard
@@ -115,7 +166,7 @@ export default async function BookingPage({
           title="Choose a boat"
           description={
             selectedBoat
-              ? "The current query param resolved to a valid boat. The form stays locked to that boat unless you switch it here."
+              ? "The current query param resolved to a valid boat. Guests can see the context before moving into the form."
               : `No valid ${bookingQueryKeys.boat} query param is set, so the form stays open for manual boat selection.`
           }
         >
@@ -149,9 +200,9 @@ export default async function BookingPage({
             {(selectedBoat ? [selectedBoat] : boats).map((boat) => (
               <div
                 key={boat.id}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
               >
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-base font-semibold text-slate-900">
                   {boat.name}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -183,8 +234,7 @@ export default async function BookingPage({
             {!selectedBoat ? <Pill tone="warning">Pick a boat to continue</Pill> : null}
           </div>
           <p className="mt-4 text-sm leading-6 text-slate-600">
-            Booking dates currently open for {minDate} through {maxDate}. Final
-            availability is checked server-side when the booking is submitted.
+            Booking dates are currently open for {minDate} through {maxDate}. The form also surfaces live slot feedback so guests can spot blocked or already-booked combinations sooner.
           </p>
         </ShellCard>
       </section>
@@ -200,43 +250,51 @@ export default async function BookingPage({
           }
         >
           {bookingPersistenceAvailable ? (
-            <div className="space-y-4">
-              {availabilitySnapshot.map((availabilityRow) => (
-                <div
-                  key={availabilityRow.boat.id}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-                >
-                  <p className="text-sm font-semibold text-slate-900">
-                    {availabilityRow.boat.name}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {availabilityRow.slots.map((slot) => (
-                      <Pill
-                        key={`${availabilityRow.boat.id}-${slot.tripType}`}
-                        tone={
-                          slot.blockedBy === null
-                            ? "success"
+            availabilitySnapshot.length > 0 ? (
+              <div className="space-y-4">
+                {availabilitySnapshot.map((availabilityRow) => (
+                  <div
+                    key={availabilityRow.boat.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                  >
+                    <p className="text-base font-semibold text-slate-900">
+                      {availabilityRow.boat.name}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {availabilityRow.slots.map((slot) => (
+                        <Pill
+                          key={`${availabilityRow.boat.id}-${slot.tripType}`}
+                          tone={
+                            slot.blockedBy === null
+                              ? "success"
+                              : slot.blockedBy === "admin"
+                                ? "warning"
+                                : "neutral"
+                          }
+                        >
+                          {tripTypeLabels[slot.tripType]}:{" "}
+                          {slot.blockedBy === null
+                            ? "Available"
                             : slot.blockedBy === "admin"
-                              ? "warning"
-                              : "neutral"
-                        }
-                      >
-                        {tripTypeLabels[slot.tripType]}:{" "}
-                        {slot.blockedBy === null
-                          ? "Available"
-                          : slot.blockedBy === "admin"
-                            ? "Admin blocked"
-                            : "Booked"}
-                      </Pill>
-                    ))}
+                              ? "Admin blocked"
+                              : "Booked"}
+                        </Pill>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                description="No boats matched the current preselection, so there is no initial slot snapshot to render."
+                title="No snapshot rows"
+              />
+            )
           ) : (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-              Configure `DATABASE_URL` to enable live slot snapshots and real booking submission.
-            </div>
+            <EmptyState
+              description="Configure `DATABASE_URL` to enable live slot snapshots and real booking submission."
+              title="Live booking state unavailable"
+            />
           )}
         </ShellCard>
 
@@ -264,12 +322,12 @@ export default async function BookingPage({
         description="Boat and trip-type pricing remains shared and DB-backed. The form shows the live selected price while this table keeps the broader context."
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {(selectedBoat ? [selectedBoat] : boats).map((boat) => (
+          {visiblePricingBoats.map((boat) => (
             <div
               key={boat.id}
-              className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+              className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
             >
-              <p className="text-sm font-semibold text-slate-900">{boat.name}</p>
+              <p className="text-base font-semibold text-slate-900">{boat.name}</p>
               <ul className="mt-3 space-y-2 text-sm text-slate-600">
                 {getSupportedTripTypesForBoat(boat).map((tripType) => {
                   const priceRule = getPriceForBoatAndTripType(

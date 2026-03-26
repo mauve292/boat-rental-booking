@@ -4,7 +4,7 @@ import {
   tripTypeLabels
 } from "@boat/domain";
 import { getBookingDetailForAdmin } from "@boat/db";
-import { Pill, ShellCard } from "@boat/ui";
+import { FeedbackBanner, Pill, ShellCard, StatCard } from "@boat/ui";
 import { entityIdSchema } from "@boat/validation";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -67,7 +67,7 @@ export default async function BookingDetailPage({
       <ShellCard
         eyebrow="Booking Detail"
         title={booking.customerName}
-        description="Inspect the booking record, current slot state, and available admin actions."
+        description="Inspect the booking record, current slot state, and available admin actions without leaving the protected workflow."
       >
         <div className="flex flex-wrap items-center gap-3">
           <Pill tone={getStatusTone(booking.status)}>
@@ -85,16 +85,44 @@ export default async function BookingDetailPage({
         </div>
       </ShellCard>
 
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          detail="Current lifecycle state for this booking."
+          label="Status"
+          tone={getStatusTone(booking.status)}
+          value={bookingStatusLabels[booking.status]}
+        />
+        <StatCard
+          detail="Whether the slot is still being held right now."
+          label="Slot"
+          tone={booking.slotOccupied ? "accent" : "neutral"}
+          value={booking.slotOccupied ? "Occupied" : "Released"}
+        />
+        <StatCard
+          detail="How this booking entered the system."
+          label="Source"
+          tone="neutral"
+          value={bookingSourceLabels[booking.source]}
+        />
+        <StatCard
+          detail={`Boat: ${booking.boatName}`}
+          label="Trip"
+          tone="success"
+          value={tripTypeLabels[booking.tripType]}
+        />
+      </section>
+
       {feedback ? (
-        <div
-          className={`rounded-2xl border px-5 py-4 text-sm ${
+        <FeedbackBanner
+          title={
             feedback.tone === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
+              ? "Booking action completed"
+              : "Booking action could not be completed"
+          }
+          tone={feedback.tone === "success" ? "success" : "error"}
         >
           {feedback.message}
-        </div>
+        </FeedbackBanner>
       ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
@@ -105,57 +133,109 @@ export default async function BookingDetailPage({
         >
           <dl className="grid gap-4 text-sm text-slate-600 md:grid-cols-2">
             <div>
-              <dt className="font-medium text-slate-900">Booking ID</dt>
-              <dd className="mt-1 break-all">{booking.id}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Booking ID
+              </dt>
+              <dd className="mt-2 break-all rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {booking.id}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Status</dt>
-              <dd className="mt-1">{bookingStatusLabels[booking.status]}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Status
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {bookingStatusLabels[booking.status]}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Customer</dt>
-              <dd className="mt-1">{booking.customerName}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Customer
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {booking.customerName}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Boat</dt>
-              <dd className="mt-1">{booking.boatName}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Boat
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {booking.boatName}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Email</dt>
-              <dd className="mt-1">{booking.email}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Email
+              </dt>
+              <dd className="mt-2 break-all rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {booking.email}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Phone</dt>
-              <dd className="mt-1">{booking.phone}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Phone
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {booking.phone}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Date</dt>
-              <dd className="mt-1">{booking.date}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Date
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {booking.date}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Trip type</dt>
-              <dd className="mt-1">{tripTypeLabels[booking.tripType]}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Trip type
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {tripTypeLabels[booking.tripType]}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Source</dt>
-              <dd className="mt-1">{bookingSourceLabels[booking.source]}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Source
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {bookingSourceLabels[booking.source]}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Created at</dt>
-              <dd className="mt-1">{formatTimestamp(booking.createdAt)}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Created at
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {formatTimestamp(booking.createdAt)}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Updated at</dt>
-              <dd className="mt-1">{formatTimestamp(booking.updatedAt)}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Updated at
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {formatTimestamp(booking.updatedAt)}
+              </dd>
             </div>
             <div>
-              <dt className="font-medium text-slate-900">Party size</dt>
-              <dd className="mt-1">{booking.partySize}</dd>
+              <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Party size
+              </dt>
+              <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                {booking.partySize}
+              </dd>
             </div>
             {booking.notes ? (
               <div className="md:col-span-2">
-                <dt className="font-medium text-slate-900">Notes</dt>
-                <dd className="mt-1">{booking.notes}</dd>
+                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Notes
+                </dt>
+                <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                  {booking.notes}
+                </dd>
               </div>
             ) : null}
           </dl>
@@ -169,12 +249,18 @@ export default async function BookingDetailPage({
           >
             <dl className="space-y-4 text-sm text-slate-600">
               <div>
-                <dt className="font-medium text-slate-900">Currently occupied</dt>
-                <dd className="mt-1">{booking.slotOccupied ? "Yes" : "No"}</dd>
+                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Currently occupied
+                </dt>
+                <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
+                  {booking.slotOccupied ? "Yes" : "No"}
+                </dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Current slot source</dt>
-                <dd className="mt-1">
+                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Current slot source
+                </dt>
+                <dd className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
                   {booking.currentSlotBlockedBy === null
                     ? "No occupancy"
                     : booking.currentSlotBlockedBy === "admin"
@@ -185,20 +271,26 @@ export default async function BookingDetailPage({
                 </dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Current occupancy ID</dt>
-                <dd className="mt-1 break-all">
+                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Current occupancy ID
+                </dt>
+                <dd className="mt-2 break-all rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
                   {booking.currentSlotOccupancyId ?? "None"}
                 </dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Current occupancy booking ID</dt>
-                <dd className="mt-1 break-all">
+                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Current occupancy booking ID
+                </dt>
+                <dd className="mt-2 break-all rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
                   {booking.currentSlotBookingId ?? "None"}
                 </dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Current admin block ID</dt>
-                <dd className="mt-1 break-all">
+                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Current admin block ID
+                </dt>
+                <dd className="mt-2 break-all rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800">
                   {booking.currentSlotAvailabilityBlockId ?? "None"}
                 </dd>
               </div>
@@ -215,7 +307,7 @@ export default async function BookingDetailPage({
                 <form action={confirmBookingAction}>
                   <input name="bookingId" type="hidden" value={booking.id} />
                   <PendingSubmitButton
-                    className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                    className="inline-flex items-center rounded-full bg-emerald-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
                     idleLabel="Confirm booking"
                     pendingLabel="Confirming..."
                   />
@@ -226,7 +318,7 @@ export default async function BookingDetailPage({
                 <form action={cancelBookingAction}>
                   <input name="bookingId" type="hidden" value={booking.id} />
                   <PendingSubmitButton
-                    className="inline-flex items-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700"
+                    className="inline-flex items-center rounded-full bg-rose-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
                     idleLabel="Cancel booking"
                     pendingLabel="Cancelling..."
                   />
@@ -237,6 +329,9 @@ export default async function BookingDetailPage({
                 </p>
               )}
             </div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">
+              Confirmation keeps the existing slot occupancy. Cancellation releases it atomically so the slot can be booked again.
+            </p>
           </ShellCard>
         </div>
       </section>

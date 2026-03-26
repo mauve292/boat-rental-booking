@@ -4,7 +4,7 @@ import {
   tripTypes
 } from "@boat/domain";
 import { listAvailabilityState, listBoats } from "@boat/db";
-import { Pill, ShellCard } from "@boat/ui";
+import { EmptyState, FeedbackBanner, Pill, ShellCard, StatCard } from "@boat/ui";
 import { entityIdSchema } from "@boat/validation";
 import Link from "next/link";
 import { getAvailabilityFeedback } from "@/lib/availability-feedback";
@@ -178,7 +178,7 @@ export default async function AvailabilityPage({
           <Pill tone="neutral">{bookingCount} booking occupied</Pill>
           <Pill tone="warning">{blockedCount} admin blocked</Pill>
           <Link
-            className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+            className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
             href="/"
           >
             Back to dashboard
@@ -186,16 +186,48 @@ export default async function AvailabilityPage({
         </div>
       </ShellCard>
 
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          detail="Slots currently free in the filtered window."
+          label="Free"
+          tone="success"
+          value={String(freeCount)}
+        />
+        <StatCard
+          detail="Held by active pending or confirmed bookings."
+          label="Booking occupied"
+          tone="neutral"
+          value={String(bookingCount)}
+        />
+        <StatCard
+          detail="Held by an admin-created availability block."
+          label="Admin blocked"
+          tone="warning"
+          value={String(blockedCount)}
+        />
+        <StatCard
+          detail={`Current view: ${filters.dateFrom} to ${filters.dateTo}`}
+          label="Window"
+          tone="accent"
+          value={
+            filters.tripType
+              ? tripTypeLabels[filters.tripType]
+              : "All trip types"
+          }
+        />
+      </section>
+
       {feedback ? (
-        <div
-          className={`rounded-2xl border px-5 py-4 text-sm ${
+        <FeedbackBanner
+          title={
             feedback.tone === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
+              ? "Availability updated"
+              : "Availability action could not be completed"
+          }
+          tone={feedback.tone === "success" ? "success" : "error"}
         >
           {feedback.message}
-        </div>
+        </FeedbackBanner>
       ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
@@ -208,7 +240,7 @@ export default async function AvailabilityPage({
             <label className="text-sm text-slate-600">
               Boat
               <select
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                 defaultValue={filters.boatId ?? ""}
                 name="boatId"
               >
@@ -224,7 +256,7 @@ export default async function AvailabilityPage({
             <label className="text-sm text-slate-600">
               Trip type
               <select
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                 defaultValue={filters.tripType ?? ""}
                 name="tripType"
               >
@@ -240,7 +272,7 @@ export default async function AvailabilityPage({
             <label className="text-sm text-slate-600">
               Date from
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                 defaultValue={filters.dateFrom}
                 name="dateFrom"
                 type="date"
@@ -250,7 +282,7 @@ export default async function AvailabilityPage({
             <label className="text-sm text-slate-600">
               Date to
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                 defaultValue={filters.dateTo}
                 name="dateTo"
                 type="date"
@@ -258,14 +290,14 @@ export default async function AvailabilityPage({
             </label>
 
             <button
-              className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+              className="inline-flex items-center justify-center rounded-full bg-slate-950 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"
               type="submit"
             >
               Apply filters
             </button>
 
             <Link
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+              className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
               href="/availability"
             >
               Reset
@@ -284,7 +316,7 @@ export default async function AvailabilityPage({
             <label className="text-sm text-slate-600">
               Boat
               <select
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                 defaultValue={filters.boatId ?? ""}
                 name="boatId"
                 required
@@ -301,7 +333,7 @@ export default async function AvailabilityPage({
             <label className="text-sm text-slate-600">
               Date
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                 defaultValue={filters.dateFrom}
                 name="date"
                 type="date"
@@ -312,7 +344,7 @@ export default async function AvailabilityPage({
             <label className="text-sm text-slate-600">
               Trip type
               <select
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                 defaultValue={filters.tripType ?? ""}
                 name="tripType"
                 required
@@ -329,7 +361,7 @@ export default async function AvailabilityPage({
             <label className="text-sm text-slate-600">
               Reason
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                 defaultValue=""
                 name="reason"
                 placeholder="Maintenance, weather hold, private event..."
@@ -338,7 +370,7 @@ export default async function AvailabilityPage({
             </label>
 
             <PendingSubmitButton
-              className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+              className="inline-flex items-center justify-center rounded-full bg-slate-950 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700"
               idleLabel="Create blocked slot"
               pendingLabel="Creating block..."
             />
@@ -352,20 +384,21 @@ export default async function AvailabilityPage({
         description="Free, booking-occupied, and admin-blocked slots for the current filtered window."
       >
         {availabilityRows.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-            No slots match the current filters.
-          </div>
+          <EmptyState
+            description="Adjust the boat, trip type, or date range to inspect another set of slots."
+            title="No slots match the current filters"
+          />
         ) : (
           <div className="space-y-4">
             {availabilityRows.map((row) => (
               <div
                 key={`${row.boatId}-${row.date}-${row.tripType}`}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {row.boatName} - {tripTypeLabels[row.tripType]}
+                    <p className="text-base font-semibold text-slate-900">
+                      {row.boatName} · {tripTypeLabels[row.tripType]}
                     </p>
                     <p className="mt-1 text-sm text-slate-600">{row.date}</p>
                   </div>
@@ -374,24 +407,49 @@ export default async function AvailabilityPage({
                   </Pill>
                 </div>
 
-                <div className="mt-4 grid gap-3 text-sm text-slate-600 md:grid-cols-2 xl:grid-cols-4">
-                  <p>Occupancy ID: {row.occupancyId ?? "None"}</p>
-                  <p>Booking ID: {row.bookingId ?? "None"}</p>
-                  <p>Block ID: {row.availabilityBlockId ?? "None"}</p>
-                  <p>
-                    Detail:{" "}
-                    {row.state === "booking"
-                      ? `${row.bookingCustomerName ?? "Booking"} (${row.bookingStatus ?? "active"})`
-                      : row.state === "admin"
-                        ? `${row.availabilityBlockReason ?? "Blocked"}`
-                        : "Free slot"}
-                  </p>
+                <div className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Occupancy ID
+                    </p>
+                    <p className="mt-2 break-all text-slate-800">
+                      {row.occupancyId ?? "None"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Booking ID
+                    </p>
+                    <p className="mt-2 break-all text-slate-800">
+                      {row.bookingId ?? "None"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Block ID
+                    </p>
+                    <p className="mt-2 break-all text-slate-800">
+                      {row.availabilityBlockId ?? "None"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      Detail
+                    </p>
+                    <p className="mt-2 text-slate-800">
+                      {row.state === "booking"
+                        ? `${row.bookingCustomerName ?? "Booking"} (${row.bookingStatus ?? "active"})`
+                        : row.state === "admin"
+                          ? `${row.availabilityBlockReason ?? "Blocked"}`
+                          : "Free slot"}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   {row.state === "booking" && row.bookingId ? (
                     <Link
-                      className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                      className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
                       href={`/bookings/${row.bookingId}`}
                     >
                       Open booking
@@ -403,7 +461,7 @@ export default async function AvailabilityPage({
                       <input name="availabilityBlockId" type="hidden" value={row.availabilityBlockId} />
                       <input name="redirectTo" type="hidden" value={currentHref} />
                       <PendingSubmitButton
-                        className="inline-flex items-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700"
+                        className="inline-flex items-center rounded-full bg-rose-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
                         idleLabel="Remove block"
                         pendingLabel="Removing..."
                       />

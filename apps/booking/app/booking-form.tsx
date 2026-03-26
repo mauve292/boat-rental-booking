@@ -9,7 +9,7 @@ import {
   type PriceRule,
   tripTypeLabels
 } from "@boat/domain";
-import { Pill } from "@boat/ui";
+import { FeedbackBanner, Pill } from "@boat/ui";
 import {
   createPublicBookingSubmissionInputSchema,
   type PublicBookingSubmissionInput
@@ -47,7 +47,9 @@ type SlotAvailabilityStatus =
     };
 
 const commonInputClasses =
-  "mt-1 w-full rounded-lg border px-3 py-2 text-slate-900 outline-none transition focus:border-slate-950";
+  "mt-1 w-full rounded-xl border px-3.5 py-3 text-slate-900 outline-none transition focus:border-slate-950";
+const sectionClasses =
+  "rounded-2xl border border-slate-200 bg-slate-50/90 p-5 sm:p-6";
 
 function getFieldError(
   field: FieldName,
@@ -70,13 +72,69 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
 
   return (
     <button
-      className="inline-flex items-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700"
+      className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700 sm:w-auto"
       disabled={disabled || pending}
       type="submit"
     >
       {pending ? "Submitting request..." : "Submit booking request"}
     </button>
   );
+}
+
+function getSubmissionTone(
+  status: typeof initialBookingSubmissionState.status
+): "success" | "warning" | "error" {
+  if (status === "success") {
+    return "success";
+  }
+
+  if (status === "conflict") {
+    return "warning";
+  }
+
+  return "error";
+}
+
+function getAvailabilityTone(
+  availability: SlotAvailabilityStatus
+): "success" | "warning" | "info" {
+  if (availability.state === "idle") {
+    return "info";
+  }
+
+  if (availability.state === "loading") {
+    return "info";
+  }
+
+  if (availability.state === "ready" && availability.blockedBy === null) {
+    return "success";
+  }
+
+  return "warning";
+}
+
+function getAvailabilityTitle(availability: SlotAvailabilityStatus): string {
+  if (availability.state === "idle") {
+    return "Preparing live availability check";
+  }
+
+  if (availability.state === "loading") {
+    return "Checking the selected slot";
+  }
+
+  if (availability.state === "ready" && availability.blockedBy === null) {
+    return "Slot available right now";
+  }
+
+  if (availability.state === "ready" && availability.blockedBy === "admin") {
+    return "Slot blocked by the team";
+  }
+
+  if (availability.state === "ready" && availability.blockedBy === "booking") {
+    return "Slot already occupied";
+  }
+
+  return "Live availability check";
 }
 
 export function BookingForm({
@@ -272,261 +330,320 @@ export function BookingForm({
     clientErrors,
     submissionState.fieldErrors
   );
+  const slotSelectionReady = Boolean(boatId && tripType && date);
 
   return (
     <div className="space-y-5">
       {submissionState.message ? (
-        <div
-          className={`rounded-xl border p-4 text-sm ${
+        <FeedbackBanner
+          title={
             submissionState.status === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              ? "Booking request received"
               : submissionState.status === "conflict"
-                ? "border-amber-200 bg-amber-50 text-amber-800"
-                : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
+                ? "That slot is no longer available"
+                : "Check the form and try again"
+          }
+          tone={getSubmissionTone(submissionState.status)}
         >
-          <p className="font-medium">{submissionState.message}</p>
+          <p>{submissionState.message}</p>
           {submissionState.status === "success" ? (
             <p className="mt-2">
               Booking reference: <span className="font-semibold">{submissionState.bookingId}</span>
             </p>
           ) : null}
-        </div>
+        </FeedbackBanner>
       ) : null}
 
-      <form action={formAction} className="grid gap-4 sm:grid-cols-2" onSubmit={handleClientValidation}>
-        {initialBoatId ? (
-          <div className="sm:col-span-2">
-            <label className="text-sm text-slate-600">
-              Boat
-              <input
-                className={getInputClasses(Boolean(boatError), true)}
-                disabled
-                readOnly
-                value={selectedBoat?.name ?? ""}
-              />
-            </label>
-            <input name="boatId" type="hidden" value={boatId} />
-            {boatError ? <p className="mt-1 text-sm text-rose-700">{boatError}</p> : null}
-          </div>
-        ) : (
-          <label className="text-sm text-slate-600">
-            Boat
-            <select
-              className={getInputClasses(Boolean(boatError), isLocked)}
-              disabled={isLocked}
-              name="boatId"
-              onChange={(event) => {
-                const nextBoatId = event.target.value;
-                const nextBoat = boats.find((boat) => boat.id === nextBoatId) ?? null;
-                const nextTripTypes = nextBoat?.supportedTripTypes ?? [];
-
-                setBoatId(nextBoatId);
-
-                if (tripType && !nextTripTypes.includes(tripType)) {
-                  setTripType("");
-                }
-
-                clearFieldError("boatId");
-              }}
-              required
-              value={boatId}
-            >
-              <option value="">Select a boat</option>
-              {boats.map((boat) => (
-                <option key={boat.id} value={boat.id}>
-                  {boat.name}
-                </option>
-              ))}
-            </select>
-            {boatError ? <p className="mt-1 text-sm text-rose-700">{boatError}</p> : null}
-          </label>
-        )}
-
-        <label className="text-sm text-slate-600">
-          Trip type
-          <select
-            className={getInputClasses(Boolean(tripTypeError), isLocked || !selectedBoat)}
-            disabled={isLocked || !selectedBoat}
-            name="tripType"
-            onChange={(event) => {
-              setTripType(event.target.value as PublicBookingSubmissionInput["tripType"] | "");
-              clearFieldError("tripType");
-            }}
-            required
-            value={tripType}
-          >
-            <option value="">
-              {selectedBoat ? "Select a trip type" : "Choose a boat first"}
-            </option>
-            {visibleTripTypes.map((supportedTripType) => (
-              <option key={supportedTripType} value={supportedTripType}>
-                {tripTypeLabels[supportedTripType]}
-              </option>
-            ))}
-          </select>
-          {tripTypeError ? (
-            <p className="mt-1 text-sm text-rose-700">{tripTypeError}</p>
-          ) : null}
-        </label>
-
-        <label className="text-sm text-slate-600">
-          Date
-          <input
-            className={getInputClasses(Boolean(dateError), isLocked)}
-            disabled={isLocked}
-            max={maxDate}
-            min={minDate}
-            name="date"
-            onChange={(event) => {
-              setDate(event.target.value);
-              clearFieldError("date");
-            }}
-            required
-            type="date"
-            value={date}
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            Season dates run from {minDate} to {maxDate} ({seasonSettings.label}).
-          </p>
-          {dateError ? <p className="mt-1 text-sm text-rose-700">{dateError}</p> : null}
-        </label>
-
-        <label className="text-sm text-slate-600">
-          Full name
-          <input
-            className={getInputClasses(Boolean(fullNameError), isLocked)}
-            disabled={isLocked}
-            name="fullName"
-            onChange={(event) => {
-              setFullName(event.target.value);
-              clearFieldError("fullName");
-            }}
-            placeholder="Guest full name"
-            required
-            value={fullName}
-          />
-          {fullNameError ? (
-            <p className="mt-1 text-sm text-rose-700">{fullNameError}</p>
-          ) : null}
-        </label>
-
-        <label className="text-sm text-slate-600">
-          Email
-          <input
-            className={getInputClasses(Boolean(emailError), isLocked)}
-            disabled={isLocked}
-            name="email"
-            onChange={(event) => {
-              setEmail(event.target.value);
-              clearFieldError("email");
-            }}
-            placeholder="guest@example.com"
-            required
-            type="email"
-            value={email}
-          />
-          {emailError ? <p className="mt-1 text-sm text-rose-700">{emailError}</p> : null}
-        </label>
-
-        <label className="text-sm text-slate-600">
-          Phone country code
-          <select
-            className={getInputClasses(Boolean(phoneCountryCodeError), isLocked)}
-            disabled={isLocked}
-            name="phoneCountryCode"
-            onChange={(event) => {
-              setPhoneCountryCode(event.target.value);
-              clearFieldError("phoneCountryCode");
-            }}
-            required
-            value={phoneCountryCode}
-          >
-            {phoneCountryOptions.map((option) => (
-              <option key={`${option.code}-${option.label}`} value={option.code}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {phoneCountryCodeError ? (
-            <p className="mt-1 text-sm text-rose-700">{phoneCountryCodeError}</p>
-          ) : null}
-        </label>
-
-        <label className="text-sm text-slate-600">
-          Mobile / phone
-          <input
-            className={getInputClasses(Boolean(phoneNumberError), isLocked)}
-            disabled={isLocked}
-            inputMode="tel"
-            name="phoneNumber"
-            onChange={(event) => {
-              setPhoneNumber(event.target.value);
-              clearFieldError("phoneNumber");
-            }}
-            pattern="[0-9()\\-\\s]{6,24}"
-            placeholder="690 123 4567"
-            required
-            value={phoneNumber}
-          />
-          {phoneNumberError ? (
-            <p className="mt-1 text-sm text-rose-700">{phoneNumberError}</p>
-          ) : null}
-        </label>
-
-        <div className="sm:col-span-2">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex flex-wrap gap-2">
-              <Pill tone={selectedPriceRule ? "accent" : "neutral"}>
-                {selectedPriceRule
-                  ? `Selected price: ${formatCurrencyAmount(
-                      selectedPriceRule.amount,
-                      selectedPriceRule.currency
-                    )}`
-                  : "Select a boat and trip type to view pricing"}
-              </Pill>
-              {date ? <Pill tone="accent">{date}</Pill> : null}
-              {tripType ? <Pill>{tripTypeLabels[tripType]}</Pill> : null}
-              {slotAvailability.state === "ready" ? (
-                <Pill
-                  tone={
-                    slotAvailability.blockedBy === null
-                      ? "success"
-                      : slotAvailability.blockedBy === "admin"
-                        ? "warning"
-                        : "neutral"
-                  }
-                >
-                  {slotAvailability.blockedBy === null
-                    ? "Live slot: Available"
-                    : slotAvailability.blockedBy === "admin"
-                      ? "Live slot: Admin blocked"
-                      : "Live slot: Booked"}
-                </Pill>
-              ) : null}
+      <form action={formAction} className="space-y-5" onSubmit={handleClientValidation}>
+        <section className={sectionClasses}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold tracking-tight text-slate-950">
+                Trip details
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Start with the boat, trip type, and date so the form can show pricing and live slot state.
+              </p>
             </div>
-            {slotAvailability.message ? (
-              <p className="mt-4 text-sm leading-6 text-slate-600">
-                {slotAvailability.message}
+            <Pill tone={selectedBoat ? "accent" : "neutral"}>
+              {selectedBoat ? selectedBoat.name : "Boat not selected yet"}
+            </Pill>
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {initialBoatId ? (
+              <div className="sm:col-span-2">
+                <label className="text-sm text-slate-600">
+                  Boat
+                  <input
+                    className={getInputClasses(Boolean(boatError), true)}
+                    disabled
+                    readOnly
+                    value={selectedBoat?.name ?? ""}
+                  />
+                </label>
+                <input name="boatId" type="hidden" value={boatId} />
+                {boatError ? (
+                  <p className="mt-1 text-sm text-rose-700">{boatError}</p>
+                ) : null}
+              </div>
+            ) : (
+              <label className="text-sm text-slate-600">
+                Boat
+                <select
+                  className={getInputClasses(Boolean(boatError), isLocked)}
+                  disabled={isLocked}
+                  name="boatId"
+                  onChange={(event) => {
+                    const nextBoatId = event.target.value;
+                    const nextBoat =
+                      boats.find((boat) => boat.id === nextBoatId) ?? null;
+                    const nextTripTypes = nextBoat?.supportedTripTypes ?? [];
+
+                    setBoatId(nextBoatId);
+
+                    if (tripType && !nextTripTypes.includes(tripType)) {
+                      setTripType("");
+                    }
+
+                    clearFieldError("boatId");
+                  }}
+                  required
+                  value={boatId}
+                >
+                  <option value="">Select a boat</option>
+                  {boats.map((boat) => (
+                    <option key={boat.id} value={boat.id}>
+                      {boat.name}
+                    </option>
+                  ))}
+                </select>
+                {boatError ? (
+                  <p className="mt-1 text-sm text-rose-700">{boatError}</p>
+                ) : null}
+              </label>
+            )}
+
+            <label className="text-sm text-slate-600">
+              Trip type
+              <select
+                className={getInputClasses(
+                  Boolean(tripTypeError),
+                  isLocked || !selectedBoat
+                )}
+                disabled={isLocked || !selectedBoat}
+                name="tripType"
+                onChange={(event) => {
+                  setTripType(
+                    event.target.value as PublicBookingSubmissionInput["tripType"] | ""
+                  );
+                  clearFieldError("tripType");
+                }}
+                required
+                value={tripType}
+              >
+                <option value="">
+                  {selectedBoat ? "Select a trip type" : "Choose a boat first"}
+                </option>
+                {visibleTripTypes.map((supportedTripType) => (
+                  <option key={supportedTripType} value={supportedTripType}>
+                    {tripTypeLabels[supportedTripType]}
+                  </option>
+                ))}
+              </select>
+              {tripTypeError ? (
+                <p className="mt-1 text-sm text-rose-700">{tripTypeError}</p>
+              ) : null}
+            </label>
+
+            <label className="text-sm text-slate-600">
+              Date
+              <input
+                className={getInputClasses(Boolean(dateError), isLocked)}
+                disabled={isLocked}
+                max={maxDate}
+                min={minDate}
+                name="date"
+                onChange={(event) => {
+                  setDate(event.target.value);
+                  clearFieldError("date");
+                }}
+                required
+                type="date"
+                value={date}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Season dates run from {minDate} to {maxDate} ({seasonSettings.label}).
               </p>
-            ) : null}
-            {!bookingPersistenceAvailable ? (
-              <p className="mt-4 text-sm leading-6 text-amber-700">
-                Real booking submission is disabled until `DATABASE_URL` is configured.
-              </p>
-            ) : null}
-            <p className="mt-4 text-sm leading-6 text-slate-600">
-              Payment remains mock-only in this step. Submitting this form creates a real
-              pending booking request and reserves the slot until the team reviews it.
+              {dateError ? (
+                <p className="mt-1 text-sm text-rose-700">{dateError}</p>
+              ) : null}
+            </label>
+          </div>
+        </section>
+
+        <section className={sectionClasses}>
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight text-slate-950">
+              Guest contact
+            </h3>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              These details are required for the admin team to review and confirm the request.
             </p>
           </div>
-        </div>
 
-        <div className="sm:col-span-2 flex flex-wrap items-center gap-3">
-          <SubmitButton disabled={isSubmitDisabled} />
-          <p className="text-sm text-slate-500">
-            The team will review pending requests before confirming the booking.
-          </p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="text-sm text-slate-600">
+              Full name
+              <input
+                className={getInputClasses(Boolean(fullNameError), isLocked)}
+                disabled={isLocked}
+                name="fullName"
+                onChange={(event) => {
+                  setFullName(event.target.value);
+                  clearFieldError("fullName");
+                }}
+                placeholder="Guest full name"
+                required
+                value={fullName}
+              />
+              {fullNameError ? (
+                <p className="mt-1 text-sm text-rose-700">{fullNameError}</p>
+              ) : null}
+            </label>
+
+            <label className="text-sm text-slate-600">
+              Email
+              <input
+                className={getInputClasses(Boolean(emailError), isLocked)}
+                disabled={isLocked}
+                name="email"
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  clearFieldError("email");
+                }}
+                placeholder="guest@example.com"
+                required
+                type="email"
+                value={email}
+              />
+              {emailError ? (
+                <p className="mt-1 text-sm text-rose-700">{emailError}</p>
+              ) : null}
+            </label>
+
+            <label className="text-sm text-slate-600">
+              Phone country code
+              <select
+                className={getInputClasses(Boolean(phoneCountryCodeError), isLocked)}
+                disabled={isLocked}
+                name="phoneCountryCode"
+                onChange={(event) => {
+                  setPhoneCountryCode(event.target.value);
+                  clearFieldError("phoneCountryCode");
+                }}
+                required
+                value={phoneCountryCode}
+              >
+                {phoneCountryOptions.map((option) => (
+                  <option key={`${option.code}-${option.label}`} value={option.code}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {phoneCountryCodeError ? (
+                <p className="mt-1 text-sm text-rose-700">
+                  {phoneCountryCodeError}
+                </p>
+              ) : null}
+            </label>
+
+            <label className="text-sm text-slate-600">
+              Mobile / phone
+              <input
+                className={getInputClasses(Boolean(phoneNumberError), isLocked)}
+                disabled={isLocked}
+                inputMode="tel"
+                name="phoneNumber"
+                onChange={(event) => {
+                  setPhoneNumber(event.target.value);
+                  clearFieldError("phoneNumber");
+                }}
+                pattern="[0-9()\\-\\s]{6,24}"
+                placeholder="690 123 4567"
+                required
+                value={phoneNumber}
+              />
+              {phoneNumberError ? (
+                <p className="mt-1 text-sm text-rose-700">{phoneNumberError}</p>
+              ) : null}
+            </label>
+          </div>
+        </section>
+
+        <section className="rounded-[28px] bg-slate-950 p-6 text-white shadow-[0_24px_60px_-32px_rgba(15,23,42,0.65)]">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
+                Booking summary
+              </p>
+              <h3 className="mt-3 text-2xl font-semibold tracking-tight">
+                {selectedPriceRule
+                  ? formatCurrencyAmount(
+                      selectedPriceRule.amount,
+                      selectedPriceRule.currency
+                    )
+                  : "Select a boat and trip type"}
+              </h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">
+                Price display is live from the saved pricing matrix. Final confirmation still happens manually after the team reviews the request.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {selectedBoat ? <Pill tone="neutral">{selectedBoat.name}</Pill> : null}
+              {tripType ? <Pill tone="accent">{tripTypeLabels[tripType]}</Pill> : null}
+              {date ? <Pill tone="neutral">{date}</Pill> : null}
+            </div>
+          </div>
+        </section>
+
+        {!bookingPersistenceAvailable ? (
+          <FeedbackBanner
+            title="Real booking submission unavailable"
+            tone="warning"
+          >
+            Real booking submission is disabled until `DATABASE_URL` is configured.
+          </FeedbackBanner>
+        ) : slotSelectionReady ? (
+          <FeedbackBanner
+            title={getAvailabilityTitle(slotAvailability)}
+            tone={getAvailabilityTone(slotAvailability)}
+          >
+            {slotAvailability.message}
+          </FeedbackBanner>
+        ) : (
+          <FeedbackBanner title="Select a slot to continue" tone="info">
+            Choose a boat, trip type, and date to load the live availability state for that exact slot.
+          </FeedbackBanner>
+        )}
+
+        <FeedbackBanner title="Pending confirmation" tone="info">
+          Payment remains mock-only in this step. Submitting the form creates a real pending booking request and reserves the slot until the team reviews it.
+        </FeedbackBanner>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">
+                Ready to submit?
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                The team will review pending requests before confirming the booking.
+              </p>
+            </div>
+            <SubmitButton disabled={isSubmitDisabled} />
+          </div>
         </div>
       </form>
     </div>

@@ -1,6 +1,6 @@
 import { formatCurrencyAmount, tripTypeLabels } from "@boat/domain";
 import { listPricingMatrix } from "@boat/db";
-import { Pill, ShellCard } from "@boat/ui";
+import { EmptyState, FeedbackBanner, Pill, ShellCard, StatCard } from "@boat/ui";
 import Link from "next/link";
 import { getPricingFeedback } from "@/lib/pricing-feedback";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
@@ -20,6 +20,12 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
     (total, row) => total + row.prices.filter((price) => price.isSupported).length,
     0
   );
+  const missingPriceCount = pricingMatrix.reduce(
+    (total, row) =>
+      total +
+      row.prices.filter((price) => price.isSupported && price.amount === null).length,
+    0
+  );
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-16">
@@ -32,7 +38,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
           <Pill tone="accent">{pricingMatrix.length} boats</Pill>
           <Pill tone="success">{supportedPriceCount} active price cells</Pill>
           <Link
-            className="inline-flex items-center rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+            className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
             href="/"
           >
             Back to dashboard
@@ -40,16 +46,44 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
         </div>
       </ShellCard>
 
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          detail="Boat rows currently available for pricing updates."
+          label="Boats"
+          tone="accent"
+          value={String(pricingMatrix.length)}
+        />
+        <StatCard
+          detail="Supported trip-type cells that accept direct saves."
+          label="Editable cells"
+          tone="success"
+          value={String(supportedPriceCount)}
+        />
+        <StatCard
+          detail="Supported cells still waiting for a saved amount."
+          label="Missing prices"
+          tone={missingPriceCount > 0 ? "warning" : "neutral"}
+          value={String(missingPriceCount)}
+        />
+        <StatCard
+          detail="Any saved change is reflected on the public booking page after the next render."
+          label="Effect"
+          tone="neutral"
+          value="Public pricing live"
+        />
+      </section>
+
       {feedback ? (
-        <div
-          className={`rounded-2xl border px-5 py-4 text-sm ${
+        <FeedbackBanner
+          title={
             feedback.tone === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
+              ? "Pricing updated"
+              : "Pricing update could not be completed"
+          }
+          tone={feedback.tone === "success" ? "success" : "error"}
         >
           {feedback.message}
-        </div>
+        </FeedbackBanner>
       ) : null}
 
       <ShellCard
@@ -58,15 +92,16 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
         description="Unsupported trip types stay visible but cannot be edited. Each save updates one boat and one trip type only."
       >
         {pricingMatrix.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-            No boats are available yet, so pricing cannot be configured.
-          </div>
+          <EmptyState
+            description="Create or seed boats first, then revisit this page to configure the pricing matrix."
+            title="No boats available for pricing"
+          />
         ) : (
           <div className="space-y-6">
             {pricingMatrix.map((row) => (
               <div
                 key={row.boatId}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
+                className="rounded-[26px] border border-slate-200 bg-slate-50 p-5 sm:p-6"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -76,7 +111,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
                     <p className="mt-1 text-sm text-slate-500">Slug: {row.boatSlug}</p>
                   </div>
                   <Link
-                    className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+                    className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
                     href={`/availability?boatId=${row.boatId}`}
                   >
                     Open availability
@@ -87,7 +122,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
                   {row.prices.map((price) => (
                     <div
                       key={`${row.boatId}-${price.tripType}`}
-                      className="rounded-xl border border-slate-200 bg-white p-4"
+                      className="rounded-2xl border border-slate-200 bg-white p-4"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-semibold text-slate-900">
@@ -114,7 +149,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
                           <label className="block text-sm text-slate-600">
                             Amount (EUR)
                             <input
-                              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"
+                              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-slate-900"
                               defaultValue={price.amount?.toFixed(2) ?? "0.00"}
                               inputMode="decimal"
                               min="0"
@@ -124,7 +159,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
                             />
                           </label>
                           <PendingSubmitButton
-                            className="inline-flex items-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                            className="inline-flex items-center rounded-full bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700"
                             idleLabel="Save price"
                             pendingLabel="Saving..."
                           />

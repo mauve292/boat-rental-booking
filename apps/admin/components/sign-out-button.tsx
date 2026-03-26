@@ -17,7 +17,7 @@ export function SignOutButton() {
       const result = await authClient.signOut();
 
       if (result.error) {
-        setErrorMessage(result.error.message ?? "Unable to sign out.");
+        setErrorMessage("Unable to sign out right now.");
         return;
       }
 
@@ -36,12 +36,12 @@ export function SignOutButton() {
         type="button"
         onClick={handleSignOut}
         disabled={isSubmitting}
-        className="inline-flex items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isSubmitting ? "Signing out..." : "Sign out"}
       </button>
       {errorMessage ? (
-        <p className="text-xs text-rose-600">{errorMessage}</p>
+        <p className="text-xs text-rose-200">{errorMessage}</p>
       ) : null}
     </div>
   );

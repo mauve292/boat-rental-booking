@@ -5,9 +5,11 @@ import {
 } from "@boat/domain";
 import { getBookingDetailForAdmin } from "@boat/db";
 import { Pill, ShellCard } from "@boat/ui";
+import { entityIdSchema } from "@boat/validation";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookingFeedback } from "@/lib/booking-feedback";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { cancelBookingAction, confirmBookingAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +49,13 @@ export default async function BookingDetailPage({
     params,
     searchParams
   ]);
-  const booking = await getBookingDetailForAdmin(bookingId);
+  const parsedBookingId = entityIdSchema.safeParse(bookingId);
+
+  if (!parsedBookingId.success) {
+    notFound();
+  }
+
+  const booking = await getBookingDetailForAdmin(parsedBookingId.data);
   const feedback = getBookingFeedback(resolvedSearchParams.feedback);
 
   if (!booking) {
@@ -206,24 +214,22 @@ export default async function BookingDetailPage({
               {booking.status === "pending" ? (
                 <form action={confirmBookingAction}>
                   <input name="bookingId" type="hidden" value={booking.id} />
-                  <button
+                  <PendingSubmitButton
                     className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-                    type="submit"
-                  >
-                    Confirm booking
-                  </button>
+                    idleLabel="Confirm booking"
+                    pendingLabel="Confirming..."
+                  />
                 </form>
               ) : null}
 
               {booking.status !== "cancelled" ? (
                 <form action={cancelBookingAction}>
                   <input name="bookingId" type="hidden" value={booking.id} />
-                  <button
+                  <PendingSubmitButton
                     className="inline-flex items-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700"
-                    type="submit"
-                  >
-                    Cancel booking
-                  </button>
+                    idleLabel="Cancel booking"
+                    pendingLabel="Cancelling..."
+                  />
                 </form>
               ) : (
                 <p className="text-sm text-slate-500">

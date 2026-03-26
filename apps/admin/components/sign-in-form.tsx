@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { adminSignInInputSchema } from "@boat/validation";
 import { authClient } from "@/lib/auth-client";
 
 export function SignInForm() {
@@ -19,14 +20,32 @@ export function SignInForm() {
       const formData = new FormData(event.currentTarget);
       const email = String(formData.get("email") ?? "").trim();
       const password = String(formData.get("password") ?? "");
-      const result = await authClient.signIn.email({
+      const parsedInput = adminSignInInputSchema.safeParse({
         email,
-        password,
+        password
+      });
+
+      if (!parsedInput.success) {
+        setErrorMessage(
+          parsedInput.error.issues[0]?.message ?? "Enter a valid email and password."
+        );
+        return;
+      }
+
+      const result = await authClient.signIn.email({
+        email: parsedInput.data.email,
+        password: parsedInput.data.password,
         rememberMe: true
       });
 
       if (result.error) {
-        setErrorMessage(result.error.message ?? "Invalid admin credentials.");
+        setErrorMessage(
+          result.error.status === 429
+            ? "Too many sign-in attempts. Please wait a few minutes and try again."
+            : result.error.status === 400 || result.error.status === 401
+              ? "Invalid admin credentials."
+              : "Unable to sign in right now."
+        );
         return;
       }
 

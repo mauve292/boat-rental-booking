@@ -5,13 +5,17 @@ import {
   AvailabilityBlockNotFoundError,
   createAvailabilityBlock,
   DatabaseWriteUnavailableError,
+  RateLimitExceededError,
   removeAvailabilityBlock,
   UnsupportedBoatTripTypeError
 } from "@boat/db";
-import { tripTypes } from "@boat/domain";
+import {
+  adminAvailabilityBlockActionInputSchema,
+  adminAvailabilityBlockRemovalInputSchema
+} from "@boat/validation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdminSession } from "@/lib/session";
+import { requireAdminMutationAccess } from "@/lib/mutation-security";
 
 function getSafeRedirectTarget(value: FormDataEntryValue | null): string {
   if (typeof value !== "string") {
@@ -30,40 +34,28 @@ function redirectWithFeedback(redirectTarget: string, feedback: string): never {
   redirect(`${url.pathname}?${url.searchParams.toString()}`);
 }
 
-function isValidIsoDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return false;
-  }
-
-  const parsedDate = new Date(`${value}T00:00:00.000Z`);
-
-  return !Number.isNaN(parsedDate.valueOf()) && parsedDate.toISOString().slice(0, 10) === value;
-}
-
 export async function createAvailabilityBlockAction(formData: FormData) {
-  const session = await requireAdminSession();
   const redirectTarget = getSafeRedirectTarget(formData.get("redirectTo"));
-  const boatId = typeof formData.get("boatId") === "string" ? String(formData.get("boatId")).trim() : "";
-  const date = typeof formData.get("date") === "string" ? String(formData.get("date")).trim() : "";
-  const tripType =
-    typeof formData.get("tripType") === "string" ? String(formData.get("tripType")).trim() : "";
-  const reason = typeof formData.get("reason") === "string" ? String(formData.get("reason")).trim() : "";
+  const parsedInput = adminAvailabilityBlockActionInputSchema.safeParse({
+    boatId: formData.get("boatId"),
+    date: formData.get("date"),
+    tripType: formData.get("tripType"),
+    reason: formData.get("reason")
+  });
 
-  if (
-    !boatId ||
-    !reason ||
-    !isValidIsoDate(date) ||
-    !tripTypes.includes(tripType as (typeof tripTypes)[number])
-  ) {
+  if (!parsedInput.success) {
     redirectWithFeedback(redirectTarget, "invalid_slot");
   }
 
   try {
+    const { session } = await requireAdminMutationAccess(
+      "admin_availability_mutation"
+    );
     await createAvailabilityBlock({
-      boatId,
-      date,
-      tripType: tripType as (typeof tripTypes)[number],
-      reason,
+      boatId: parsedInput.data.boatId,
+      date: parsedInput.data.date,
+      tripType: parsedInput.data.tripType,
+      reason: parsedInput.data.reason,
       createdByLabel: session.user.name || session.user.email
     });
 
@@ -88,25 +80,28 @@ export async function createAvailabilityBlockAction(formData: FormData) {
       );
     }
 
+    if (error instanceof RateLimitExceededError) {
+      redirectWithFeedback(redirectTarget, "rate_limited");
+    }
+
     console.error("Unexpected admin availability block creation failure", error);
     redirectWithFeedback(redirectTarget, "action_failed");
   }
 }
 
 export async function removeAvailabilityBlockAction(formData: FormData) {
-  await requireAdminSession();
   const redirectTarget = getSafeRedirectTarget(formData.get("redirectTo"));
-  const availabilityBlockId =
-    typeof formData.get("availabilityBlockId") === "string"
-      ? String(formData.get("availabilityBlockId")).trim()
-      : "";
+  const parsedInput = adminAvailabilityBlockRemovalInputSchema.safeParse({
+    availabilityBlockId: formData.get("availabilityBlockId")
+  });
 
-  if (!availabilityBlockId) {
+  if (!parsedInput.success) {
     redirectWithFeedback(redirectTarget, "block_missing");
   }
 
   try {
-    await removeAvailabilityBlock(availabilityBlockId);
+    await requireAdminMutationAccess("admin_availability_mutation");
+    await removeAvailabilityBlock(parsedInput.data.availabilityBlockId);
     revalidatePath("/");
     revalidatePath("/availability");
     redirectWithFeedback(redirectTarget, "block_removed");
@@ -117,6 +112,10 @@ export async function removeAvailabilityBlockAction(formData: FormData) {
 
     if (error instanceof DatabaseWriteUnavailableError) {
       redirectWithFeedback(redirectTarget, "write_unavailable");
+    }
+
+    if (error instanceof RateLimitExceededError) {
+      redirectWithFeedback(redirectTarget, "rate_limited");
     }
 
     console.error("Unexpected admin availability block removal failure", error);

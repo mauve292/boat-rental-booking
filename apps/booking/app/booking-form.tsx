@@ -29,6 +29,7 @@ type BookingFormProps = {
   initialDate: string;
   minDate: string;
   maxDate: string;
+  bookingPersistenceAvailable: boolean;
   seasonSettings: BookingSeasonSettings;
 };
 
@@ -85,6 +86,7 @@ export function BookingForm({
   initialDate,
   minDate,
   maxDate,
+  bookingPersistenceAvailable,
   seasonSettings
 }: BookingFormProps) {
   const [submissionState, formAction] = useActionState(
@@ -118,6 +120,7 @@ export function BookingForm({
   const isLocked = submissionState.status === "success";
   const visibleTripTypes = selectedBoat?.supportedTripTypes ?? [];
   const isSubmitDisabled =
+    !bookingPersistenceAvailable ||
     isLocked ||
     slotAvailability.state === "loading" ||
     (slotAvailability.state === "ready" && slotAvailability.blockedBy !== null);
@@ -128,6 +131,16 @@ export function BookingForm({
         state: "idle",
         blockedBy: null,
         message: null
+      });
+      return;
+    }
+
+    if (!bookingPersistenceAvailable) {
+      setSlotAvailability({
+        state: "error",
+        blockedBy: null,
+        message:
+          "Live slot availability is unavailable until booking persistence is configured."
       });
       return;
     }
@@ -189,7 +202,7 @@ export function BookingForm({
     return () => {
       abortController.abort();
     };
-  }, [boatId, tripType, date]);
+  }, [boatId, bookingPersistenceAvailable, tripType, date]);
 
   function clearFieldError(field: FieldName) {
     setClientErrors((currentErrors) => {
@@ -205,6 +218,7 @@ export function BookingForm({
 
   function handleClientValidation(event: React.FormEvent<HTMLFormElement>) {
     if (
+      !bookingPersistenceAvailable ||
       slotAvailability.state === "loading" ||
       (slotAvailability.state === "ready" && slotAvailability.blockedBy !== null)
     ) {
@@ -494,6 +508,11 @@ export function BookingForm({
             {slotAvailability.message ? (
               <p className="mt-4 text-sm leading-6 text-slate-600">
                 {slotAvailability.message}
+              </p>
+            ) : null}
+            {!bookingPersistenceAvailable ? (
+              <p className="mt-4 text-sm leading-6 text-amber-700">
+                Real booking submission is disabled until `DATABASE_URL` is configured.
               </p>
             ) : null}
             <p className="mt-4 text-sm leading-6 text-slate-600">

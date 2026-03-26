@@ -11,6 +11,7 @@ import {
 import {
   getAppSettings,
   getAvailabilitySnapshot,
+  isDatabaseConfigured,
   listBoats,
   listPriceRules
 } from "@boat/db";
@@ -70,14 +71,17 @@ export default async function BookingPage({
   );
   const selectedBoat = selectedBoatState.boat;
   const visibleTripTypes = getSupportedTripTypesForBoat(selectedBoat);
+  const bookingPersistenceAvailable = isDatabaseConfigured();
   const { initialDate, minDate, maxDate } = getSeasonDateBounds(
     new Date(),
     appSettings.bookingSeason
   );
-  const availabilitySnapshot = await getAvailabilitySnapshot({
-    date: initialDate,
-    boatId: selectedBoat?.id
-  });
+  const availabilitySnapshot = bookingPersistenceAvailable
+    ? await getAvailabilitySnapshot({
+        date: initialDate,
+        boatId: selectedBoat?.id
+      })
+    : [];
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-8 px-6 py-16">
@@ -94,6 +98,11 @@ export default async function BookingPage({
           )}
           <Pill tone="success">Season: {appSettings.bookingSeason.label}</Pill>
           <Pill tone="accent">New requests start as pending</Pill>
+          <Pill tone={bookingPersistenceAvailable ? "success" : "warning"}>
+            {bookingPersistenceAvailable
+              ? "Live booking persistence enabled"
+              : "Booking persistence unavailable"}
+          </Pill>
           {rawBoatSlug && !selectedBoatState.isValid ? (
             <Pill tone="warning">Unknown boat slug: {rawBoatSlug}</Pill>
           ) : null}
@@ -184,41 +193,51 @@ export default async function BookingPage({
         <ShellCard
           eyebrow="Availability"
           title="Initial slot snapshot"
-          description={`Database-backed slot state for ${initialDate}. A slot is unavailable when a non-cancelled booking or an admin block already occupies it.`}
+          description={
+            bookingPersistenceAvailable
+              ? `Database-backed slot state for ${initialDate}. A slot is unavailable when a non-cancelled booking or an admin block already occupies it.`
+              : "Live slot state requires a configured database, so this view stays disabled until booking persistence is available."
+          }
         >
-          <div className="space-y-4">
-            {availabilitySnapshot.map((availabilityRow) => (
-              <div
-                key={availabilityRow.boat.id}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-              >
-                <p className="text-sm font-semibold text-slate-900">
-                  {availabilityRow.boat.name}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {availabilityRow.slots.map((slot) => (
-                    <Pill
-                      key={`${availabilityRow.boat.id}-${slot.tripType}`}
-                      tone={
-                        slot.blockedBy === null
-                          ? "success"
+          {bookingPersistenceAvailable ? (
+            <div className="space-y-4">
+              {availabilitySnapshot.map((availabilityRow) => (
+                <div
+                  key={availabilityRow.boat.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <p className="text-sm font-semibold text-slate-900">
+                    {availabilityRow.boat.name}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {availabilityRow.slots.map((slot) => (
+                      <Pill
+                        key={`${availabilityRow.boat.id}-${slot.tripType}`}
+                        tone={
+                          slot.blockedBy === null
+                            ? "success"
+                            : slot.blockedBy === "admin"
+                              ? "warning"
+                              : "neutral"
+                        }
+                      >
+                        {tripTypeLabels[slot.tripType]}:{" "}
+                        {slot.blockedBy === null
+                          ? "Available"
                           : slot.blockedBy === "admin"
-                            ? "warning"
-                            : "neutral"
-                      }
-                    >
-                      {tripTypeLabels[slot.tripType]}:{" "}
-                      {slot.blockedBy === null
-                        ? "Available"
-                        : slot.blockedBy === "admin"
-                          ? "Admin blocked"
-                          : "Booked"}
-                    </Pill>
-                  ))}
+                            ? "Admin blocked"
+                            : "Booked"}
+                      </Pill>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+              Configure `DATABASE_URL` to enable live slot snapshots and real booking submission.
+            </div>
+          )}
         </ShellCard>
 
         <ShellCard
@@ -232,6 +251,7 @@ export default async function BookingPage({
             initialDate={initialDate}
             maxDate={maxDate}
             minDate={minDate}
+            bookingPersistenceAvailable={bookingPersistenceAvailable}
             priceRules={priceRules}
             seasonSettings={appSettings.bookingSeason}
           />

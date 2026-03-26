@@ -4,6 +4,7 @@ import {
   createPendingBooking,
   getAppSettings,
   DatabaseWriteUnavailableError,
+  RateLimitExceededError,
   SlotUnavailableError,
   UnsupportedBoatTripTypeError
 } from "@boat/db";
@@ -13,6 +14,7 @@ import {
   type PublicBookingSubmissionInput
 } from "@boat/validation";
 import type { BookingSubmissionState } from "./booking-form-state";
+import { assertPublicBookingSubmissionAccess } from "./request-security";
 
 function getFormValue(formData: FormData, key: keyof PublicBookingSubmissionInput): string {
   const value = formData.get(key);
@@ -47,6 +49,7 @@ export async function submitPublicBooking(
   }
 
   try {
+    await assertPublicBookingSubmissionAccess();
     const booking = await createPendingBooking({
       boatId: parsedSubmission.data.boatId,
       date: parsedSubmission.data.date,
@@ -96,6 +99,16 @@ export async function submitPublicBooking(
         status: "error",
         message:
           "Booking submission is temporarily unavailable because the database is not configured.",
+        fieldErrors: {},
+        bookingId: null
+      };
+    }
+
+    if (error instanceof RateLimitExceededError) {
+      return {
+        status: "error",
+        message:
+          "Too many booking attempts were submitted from this connection. Please wait a few minutes and try again.",
         fieldErrors: {},
         bookingId: null
       };

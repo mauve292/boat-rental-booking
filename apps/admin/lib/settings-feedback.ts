@@ -15,6 +15,10 @@ const settingsFeedbackMessages = {
     tone: "error",
     message: "Select a valid season month range and contact email."
   },
+  rate_limited: {
+    tone: "error",
+    message: "Too many settings updates were submitted. Please wait a minute and try again."
+  },
   write_unavailable: {
     tone: "error",
     message: "Settings management is temporarily unavailable."

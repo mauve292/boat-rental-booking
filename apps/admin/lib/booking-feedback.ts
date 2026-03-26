@@ -31,6 +31,10 @@ const bookingFeedbackMessages = {
     tone: "error",
     message: "This booking cannot be confirmed because it no longer holds the slot."
   },
+  rate_limited: {
+    tone: "error",
+    message: "Too many booking management actions were submitted. Please wait a minute and try again."
+  },
   write_unavailable: {
     tone: "error",
     message: "Booking management is temporarily unavailable."

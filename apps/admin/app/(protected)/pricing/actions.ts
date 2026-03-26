@@ -3,59 +3,36 @@
 import {
   DatabaseWriteUnavailableError,
   InvalidPriceRuleAmountError,
+  RateLimitExceededError,
   UnsupportedBoatTripTypeError,
   updatePriceRule
 } from "@boat/db";
-import { tripTypes } from "@boat/domain";
+import { adminPriceRuleMutationInputSchema } from "@boat/validation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdminSession } from "@/lib/session";
+import { requireAdminMutationAccess } from "@/lib/mutation-security";
 
 function redirectWithFeedback(feedback: string): never {
   redirect(`/pricing?feedback=${feedback}`);
 }
 
-function parseAmount(value: FormDataEntryValue | null): number | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalizedValue = value.trim();
-
-  if (!/^\d+(?:\.\d{1,2})?$/.test(normalizedValue)) {
-    return null;
-  }
-
-  const parsedValue = Number(normalizedValue);
-
-  return Number.isFinite(parsedValue) ? parsedValue : null;
-}
-
 export async function updatePriceRuleAction(formData: FormData) {
-  await requireAdminSession();
-  const boatId =
-    typeof formData.get("boatId") === "string"
-      ? String(formData.get("boatId")).trim()
-      : "";
-  const tripType =
-    typeof formData.get("tripType") === "string"
-      ? String(formData.get("tripType")).trim()
-      : "";
-  const amount = parseAmount(formData.get("amount"));
+  const parsedInput = adminPriceRuleMutationInputSchema.safeParse({
+    boatId: formData.get("boatId"),
+    tripType: formData.get("tripType"),
+    amount: formData.get("amount")
+  });
 
-  if (
-    !boatId ||
-    !tripTypes.includes(tripType as (typeof tripTypes)[number]) ||
-    amount === null
-  ) {
+  if (!parsedInput.success) {
     redirectWithFeedback("invalid_price");
   }
 
   try {
+    await requireAdminMutationAccess("admin_pricing_mutation");
     await updatePriceRule({
-      boatId,
-      tripType: tripType as (typeof tripTypes)[number],
-      amount
+      boatId: parsedInput.data.boatId,
+      tripType: parsedInput.data.tripType,
+      amount: parsedInput.data.amount
     });
 
     revalidatePath("/");
@@ -72,6 +49,10 @@ export async function updatePriceRuleAction(formData: FormData) {
 
     if (error instanceof DatabaseWriteUnavailableError) {
       redirectWithFeedback("write_unavailable");
+    }
+
+    if (error instanceof RateLimitExceededError) {
+      redirectWithFeedback("rate_limited");
     }
 
     console.error("Unexpected admin pricing update failure", error);

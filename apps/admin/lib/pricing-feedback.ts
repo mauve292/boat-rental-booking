@@ -19,6 +19,10 @@ const pricingFeedbackMessages = {
     tone: "error",
     message: "The requested boat and trip type pricing rule is not valid."
   },
+  rate_limited: {
+    tone: "error",
+    message: "Too many pricing updates were submitted. Please wait a minute and try again."
+  },
   write_unavailable: {
     tone: "error",
     message: "Pricing management is temporarily unavailable."

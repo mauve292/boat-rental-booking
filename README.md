@@ -73,6 +73,7 @@ corepack pnpm db:seed
 - Shared packages are wired through workspace imports.
 - `packages/db` introduces the first real persistence layer with Prisma configured for PostgreSQL and a standard `DATABASE_URL`.
 - Copy [.env.example](C:/Users/bill2/Desktop/ithaca%20usefull/boat-rental-booking/.env.example) to `.env` and set `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL` before running the Prisma/auth flow.
+- Optional rate-limit env vars: `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. When they are missing, the app falls back to an in-memory fixed-window limiter for local/dev use.
 - Local DB flow: `corepack pnpm db:generate`, `corepack pnpm db:migrate` (or `corepack pnpm db:push` if you intentionally want schema sync without migrations), then `corepack pnpm db:seed`.
 - Better Auth now protects the admin app only. The shared auth config lives in `packages/db`, uses the existing Prisma/Postgres database, and keeps the public `site` and `booking` apps unauthenticated.
 - Admin email/password sign-up is disabled in runtime. The development admin account is created by the Prisma seed using `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `ADMIN_NAME`.
@@ -94,7 +95,10 @@ corepack pnpm db:seed
 - Removing an admin block deletes the linked `SlotOccupancy` and removes the `AvailabilityBlock` record in one transaction, reopening the slot.
 - Pricing is now DB-backed per `boat + trip type` through `PriceRule`. Saving a price in `/pricing` updates both the admin matrix and the public booking price display on the next request.
 - Phase-1 settings now use a singleton `AppSettings` record in the database for booking season start/end months and the primary contact email. Public booking season rendering and submission validation now read from that DB-backed source, while payment remains mock-only.
+- Rate limiting is now centralized in `@boat/db` and applied to public booking submission, admin sign-in, admin booking mutations, admin availability mutations, admin pricing updates, and admin settings updates. Upstash Redis is the preferred backend; local/dev falls back to an in-memory limiter when Upstash is not configured.
+- Public booking no longer fakes live real-time state when `DATABASE_URL` is missing. Fleet/pricing/settings reads can still fall back for demo rendering, but live slot availability and real booking submission are disabled until the database is configured.
+- Admin auth responses now send `Cache-Control: no-store`, and the apps ship low-risk security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`) with `X-Powered-By` disabled.
 - Payment is still mock-only. The booking UI shows pricing context, but no payment provider is integrated yet.
 - Real booking writes require `DATABASE_URL` so the booking app can create records in Postgres. Without a configured database, reads still fall back to mock data but submission is unavailable.
-- Still intentionally missing: public customer accounts, payment integration, richer pricing overrides, richer settings/CMS management, and production notification delivery.
+- Still intentionally missing: public customer accounts, payment integration, richer pricing overrides, richer settings/CMS management, stronger audit/observability tooling, and production notification delivery.
 - The structure is ready for future additions such as Prisma/Postgres, Better Auth, shared booking logic, and rate limiting without coupling those concerns into the initial scaffold.

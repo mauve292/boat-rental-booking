@@ -6,17 +6,13 @@ import {
   BookingTransitionError,
   cancelBooking,
   confirmBooking,
-  DatabaseWriteUnavailableError
+  DatabaseWriteUnavailableError,
+  RateLimitExceededError
 } from "@boat/db";
+import { adminBookingMutationInputSchema } from "@boat/validation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdminSession } from "@/lib/session";
-
-function getBookingIdFromFormData(formData: FormData): string {
-  const bookingId = formData.get("bookingId");
-
-  return typeof bookingId === "string" ? bookingId.trim() : "";
-}
+import { requireAdminMutationAccess } from "@/lib/mutation-security";
 
 function redirectToBookingDetail(bookingId: string, feedback: string) {
   redirect(`/bookings/${bookingId}?feedback=${feedback}`);
@@ -33,15 +29,17 @@ function revalidateAdminBookingPaths(bookingId: string) {
 }
 
 export async function confirmBookingAction(formData: FormData) {
-  await requireAdminSession();
-
-  const bookingId = getBookingIdFromFormData(formData);
+  const parsedInput = adminBookingMutationInputSchema.safeParse({
+    bookingId: formData.get("bookingId")
+  });
+  const bookingId = parsedInput.success ? parsedInput.data.bookingId : "";
 
   if (!bookingId) {
     redirectToBookings("booking_missing");
   }
 
   try {
+    await requireAdminMutationAccess("admin_booking_mutation");
     await confirmBooking(bookingId);
     revalidateAdminBookingPaths(bookingId);
     redirectToBookingDetail(bookingId, "confirmed");
@@ -62,21 +60,27 @@ export async function confirmBookingAction(formData: FormData) {
       redirectToBookingDetail(bookingId, "write_unavailable");
     }
 
+    if (error instanceof RateLimitExceededError) {
+      redirectToBookingDetail(bookingId, "rate_limited");
+    }
+
     console.error("Unexpected admin confirm booking failure", error);
     redirectToBookingDetail(bookingId, "action_failed");
   }
 }
 
 export async function cancelBookingAction(formData: FormData) {
-  await requireAdminSession();
-
-  const bookingId = getBookingIdFromFormData(formData);
+  const parsedInput = adminBookingMutationInputSchema.safeParse({
+    bookingId: formData.get("bookingId")
+  });
+  const bookingId = parsedInput.success ? parsedInput.data.bookingId : "";
 
   if (!bookingId) {
     redirectToBookings("booking_missing");
   }
 
   try {
+    await requireAdminMutationAccess("admin_booking_mutation");
     const result = await cancelBooking(bookingId);
     revalidateAdminBookingPaths(bookingId);
     redirectToBookingDetail(
@@ -90,6 +94,10 @@ export async function cancelBookingAction(formData: FormData) {
 
     if (error instanceof DatabaseWriteUnavailableError) {
       redirectToBookingDetail(bookingId, "write_unavailable");
+    }
+
+    if (error instanceof RateLimitExceededError) {
+      redirectToBookingDetail(bookingId, "rate_limited");
     }
 
     console.error("Unexpected admin cancel booking failure", error);

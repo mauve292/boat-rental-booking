@@ -3,6 +3,7 @@ import { listPricingMatrix } from "@boat/db";
 import { Pill, ShellCard } from "@boat/ui";
 import Link from "next/link";
 import { getPricingFeedback } from "@/lib/pricing-feedback";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { updatePriceRuleAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -122,12 +123,11 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
                               type="number"
                             />
                           </label>
-                          <button
+                          <PendingSubmitButton
                             className="inline-flex items-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-                            type="submit"
-                          >
-                            Save price
-                          </button>
+                            idleLabel="Save price"
+                            pendingLabel="Saving..."
+                          />
                         </form>
                       ) : (
                         <p className="mt-4 text-sm text-slate-500">

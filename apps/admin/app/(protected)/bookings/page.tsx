@@ -5,6 +5,7 @@ import {
 } from "@boat/domain";
 import { listBoats, listBookings } from "@boat/db";
 import { Pill, ShellCard } from "@boat/ui";
+import { bookingStatusSchema, entityIdSchema } from "@boat/validation";
 import Link from "next/link";
 import { getBookingFeedback } from "@/lib/booking-feedback";
 
@@ -49,13 +50,12 @@ function normalizeSearchParamValue(
 function parseBookingsFilters(searchParams: Record<string, string | string[] | undefined>) {
   const status = normalizeSearchParamValue(searchParams.status);
   const boatId = normalizeSearchParamValue(searchParams.boatId);
+  const parsedStatus = bookingStatusSchema.safeParse(status);
+  const parsedBoatId = entityIdSchema.safeParse(boatId);
 
   return {
-    status:
-      status && bookingStatusValues.includes(status as (typeof bookingStatusValues)[number])
-        ? (status as (typeof bookingStatusValues)[number])
-        : undefined,
-    boatId: boatId ?? undefined
+    status: parsedStatus.success ? parsedStatus.data : undefined,
+    boatId: parsedBoatId.success ? parsedBoatId.data : undefined
   };
 }
 

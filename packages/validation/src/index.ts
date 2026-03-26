@@ -55,6 +55,20 @@ export const tripTypeSchema = z.enum(tripTypes);
 
 export const bookingStatusSchema = z.enum(bookingStatusValues);
 
+export const entityIdSchema = z
+  .string()
+  .trim()
+  .min(3, "Select a valid record.")
+  .max(120, "Select a valid record.")
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, "Select a valid record.");
+
+export const emailAddressSchema = z
+  .string()
+  .trim()
+  .email("Enter a valid email address.")
+  .max(160, "Email is too long.")
+  .transform((value) => value.toLowerCase());
+
 export const isoDateSchema = z
   .string()
   .trim()
@@ -85,6 +99,48 @@ export const phoneInputDraftSchema = z
   .max(32)
   .regex(/^[+0-9()\-\s]*$/, "Phone number contains unsupported characters.");
 
+export const monthNumberSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmedValue = value.trim();
+
+    return trimmedValue.length > 0 ? Number.parseInt(trimmedValue, 10) : value;
+  },
+  z
+    .number({ error: "Select a valid month." })
+    .int("Select a valid month.")
+    .min(1, "Select a valid month.")
+    .max(12, "Select a valid month.")
+);
+
+export const priceAmountSchema = z.preprocess(
+  (value) => {
+    if (typeof value === "number") {
+      return value;
+    }
+
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmedValue = value.trim();
+
+    return trimmedValue.length > 0 ? Number(trimmedValue) : value;
+  },
+  z
+    .number({ error: "Enter a valid price." })
+    .finite("Enter a valid price.")
+    .min(0, "Enter a valid non-negative price.")
+    .max(999999.99, "Enter a practical price value.")
+    .refine(
+      (value) => Math.round(value * 100) === value * 100,
+      "Use at most two decimal places."
+    )
+);
+
 export const bookingFormDraftSchema = z.object({
   boatId: z.string().trim().min(1).nullable().optional(),
   tripType: tripTypeSchema.optional(),
@@ -101,7 +157,7 @@ export function createPublicBookingSubmissionInputSchema(
 ) {
   return z
     .object({
-      boatId: z.string().trim().min(1, "Select a boat."),
+      boatId: entityIdSchema,
       tripType: tripTypeSchema,
       date: isoDateSchema,
       fullName: z
@@ -109,11 +165,7 @@ export function createPublicBookingSubmissionInputSchema(
         .trim()
         .min(2, "Enter your full name.")
         .max(120, "Full name is too long."),
-      email: z
-        .string()
-        .trim()
-        .email("Enter a valid email address.")
-        .max(160, "Email is too long."),
+      email: emailAddressSchema,
       phoneCountryCode: phoneCountryCodeSchema,
       phoneNumber: phoneLocalNumberSchema
     })
@@ -135,7 +187,7 @@ export function createPublicBookingSubmissionInputSchema(
         tripType: value.tripType,
         date: value.date,
         fullName: normalizeWhitespace(value.fullName),
-        email: value.email.trim().toLowerCase(),
+        email: value.email,
         phoneCountryCode,
         phoneNumber,
         phone: `${phoneCountryCode} ${phoneNumber}`
@@ -148,6 +200,66 @@ export const publicBookingSubmissionInputSchema =
 
 export const bookingSearchParamsSchema = z.object({
   [bookingQueryKeys.boat]: z.string().trim().min(1).optional()
+});
+
+export const slotAvailabilityRequestSchema = z.object({
+  boatId: entityIdSchema,
+  date: isoDateSchema,
+  tripType: tripTypeSchema
+});
+
+export const adminBookingMutationInputSchema = z.object({
+  bookingId: entityIdSchema
+});
+
+export const adminAvailabilityBlockActionInputSchema = z
+  .object({
+    boatId: entityIdSchema,
+    date: isoDateSchema,
+    tripType: tripTypeSchema,
+    reason: z
+      .string()
+      .trim()
+      .min(3, "Enter a short reason.")
+      .max(160, "Reason is too long.")
+  })
+  .transform((value) => ({
+    ...value,
+    reason: normalizeWhitespace(value.reason)
+  }));
+
+export const adminAvailabilityBlockRemovalInputSchema = z.object({
+  availabilityBlockId: entityIdSchema
+});
+
+export const adminPriceRuleMutationInputSchema = z.object({
+  boatId: entityIdSchema,
+  tripType: tripTypeSchema,
+  amount: priceAmountSchema
+});
+
+export const adminAppSettingsInputSchema = z
+  .object({
+    bookingSeasonStartMonth: monthNumberSchema,
+    bookingSeasonEndMonth: monthNumberSchema,
+    contactEmail: emailAddressSchema
+  })
+  .superRefine((value, context) => {
+    if (value.bookingSeasonStartMonth > value.bookingSeasonEndMonth) {
+      context.addIssue({
+        code: "custom",
+        message: "End month must be the same as or after the start month.",
+        path: ["bookingSeasonEndMonth"]
+      });
+    }
+  });
+
+export const adminSignInInputSchema = z.object({
+  email: emailAddressSchema,
+  password: z
+    .string()
+    .min(1, "Enter your password.")
+    .max(200, "Password is too long.")
 });
 
 export function parseBoatQueryParam(
@@ -174,3 +286,22 @@ export type PublicBookingSubmissionInput = z.input<
 export type PublicBookingSubmission = z.infer<
   typeof publicBookingSubmissionInputSchema
 >;
+export type SlotAvailabilityRequestInput = z.infer<
+  typeof slotAvailabilityRequestSchema
+>;
+export type AdminBookingMutationInput = z.infer<
+  typeof adminBookingMutationInputSchema
+>;
+export type AdminAvailabilityBlockActionInput = z.infer<
+  typeof adminAvailabilityBlockActionInputSchema
+>;
+export type AdminAvailabilityBlockRemovalInput = z.infer<
+  typeof adminAvailabilityBlockRemovalInputSchema
+>;
+export type AdminPriceRuleMutationInput = z.infer<
+  typeof adminPriceRuleMutationInputSchema
+>;
+export type AdminAppSettingsInput = z.infer<
+  typeof adminAppSettingsInputSchema
+>;
+export type AdminSignInInput = z.infer<typeof adminSignInInputSchema>;

@@ -27,6 +27,10 @@ const availabilityFeedbackMessages = {
     tone: "error",
     message: "The requested blocked slot could not be found."
   },
+  rate_limited: {
+    tone: "error",
+    message: "Too many availability actions were submitted. Please wait a minute and try again."
+  },
   invalid_slot: {
     tone: "error",
     message: "Select a valid boat, date, and trip type."

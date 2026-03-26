@@ -5,8 +5,10 @@ import {
 } from "@boat/domain";
 import { listAvailabilityState, listBoats } from "@boat/db";
 import { Pill, ShellCard } from "@boat/ui";
+import { entityIdSchema } from "@boat/validation";
 import Link from "next/link";
 import { getAvailabilityFeedback } from "@/lib/availability-feedback";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import {
   createAvailabilityBlockAction,
   removeAvailabilityBlockAction
@@ -83,12 +85,15 @@ function parseAvailabilityFilters(
   const dateFrom = normalizeSearchParamValue(searchParams.dateFrom);
   const dateTo = normalizeSearchParamValue(searchParams.dateTo);
   const tripType = normalizeSearchParamValue(searchParams.tripType);
+  const parsedBoatId = entityIdSchema.safeParse(
+    normalizeSearchParamValue(searchParams.boatId)
+  );
 
   const parsedDateFrom = dateFrom && isValidIsoDate(dateFrom) ? dateFrom : defaults.dateFrom;
   const parsedDateTo = dateTo && isValidIsoDate(dateTo) ? dateTo : defaults.dateTo;
 
   return {
-    boatId: normalizeSearchParamValue(searchParams.boatId) ?? undefined,
+    boatId: parsedBoatId.success ? parsedBoatId.data : undefined,
     tripType:
       tripType && tripTypes.includes(tripType as (typeof tripTypes)[number])
         ? (tripType as (typeof tripTypes)[number])
@@ -332,12 +337,11 @@ export default async function AvailabilityPage({
               />
             </label>
 
-            <button
+            <PendingSubmitButton
               className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-              type="submit"
-            >
-              Create blocked slot
-            </button>
+              idleLabel="Create blocked slot"
+              pendingLabel="Creating block..."
+            />
           </form>
         </ShellCard>
       </section>
@@ -398,12 +402,11 @@ export default async function AvailabilityPage({
                     <form action={removeAvailabilityBlockAction}>
                       <input name="availabilityBlockId" type="hidden" value={row.availabilityBlockId} />
                       <input name="redirectTo" type="hidden" value={currentHref} />
-                      <button
+                      <PendingSubmitButton
                         className="inline-flex items-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700"
-                        type="submit"
-                      >
-                        Remove block
-                      </button>
+                        idleLabel="Remove block"
+                        pendingLabel="Removing..."
+                      />
                     </form>
                   ) : null}
 

@@ -3,52 +3,35 @@
 import {
   AppSettingsConfigurationError,
   DatabaseWriteUnavailableError,
+  RateLimitExceededError,
   updateAppSettings
 } from "@boat/db";
+import { adminAppSettingsInputSchema } from "@boat/validation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireAdminSession } from "@/lib/session";
+import { requireAdminMutationAccess } from "@/lib/mutation-security";
 
 function redirectWithFeedback(feedback: string): never {
   redirect(`/settings?feedback=${feedback}`);
 }
 
-function parseMonth(value: FormDataEntryValue | null): number | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const parsedValue = Number.parseInt(value.trim(), 10);
-
-  return Number.isInteger(parsedValue) ? parsedValue : null;
-}
-
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
 export async function updateAppSettingsAction(formData: FormData) {
-  await requireAdminSession();
-  const bookingSeasonStartMonth = parseMonth(formData.get("bookingSeasonStartMonth"));
-  const bookingSeasonEndMonth = parseMonth(formData.get("bookingSeasonEndMonth"));
-  const contactEmail =
-    typeof formData.get("contactEmail") === "string"
-      ? String(formData.get("contactEmail")).trim()
-      : "";
+  const parsedInput = adminAppSettingsInputSchema.safeParse({
+    bookingSeasonStartMonth: formData.get("bookingSeasonStartMonth"),
+    bookingSeasonEndMonth: formData.get("bookingSeasonEndMonth"),
+    contactEmail: formData.get("contactEmail")
+  });
 
-  if (
-    bookingSeasonStartMonth === null ||
-    bookingSeasonEndMonth === null ||
-    !isValidEmail(contactEmail)
-  ) {
+  if (!parsedInput.success) {
     redirectWithFeedback("invalid_settings");
   }
 
   try {
+    await requireAdminMutationAccess("admin_settings_mutation");
     await updateAppSettings({
-      bookingSeasonStartMonth,
-      bookingSeasonEndMonth,
-      contactEmail
+      bookingSeasonStartMonth: parsedInput.data.bookingSeasonStartMonth,
+      bookingSeasonEndMonth: parsedInput.data.bookingSeasonEndMonth,
+      contactEmail: parsedInput.data.contactEmail
     });
 
     revalidatePath("/");
@@ -61,6 +44,10 @@ export async function updateAppSettingsAction(formData: FormData) {
 
     if (error instanceof DatabaseWriteUnavailableError) {
       redirectWithFeedback("write_unavailable");
+    }
+
+    if (error instanceof RateLimitExceededError) {
+      redirectWithFeedback("rate_limited");
     }
 
     console.error("Unexpected admin settings update failure", error);

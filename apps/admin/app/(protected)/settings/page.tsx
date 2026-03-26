@@ -3,6 +3,7 @@ import { getMonthLabel } from "@boat/domain";
 import { Pill, ShellCard } from "@boat/ui";
 import Link from "next/link";
 import { getSettingsFeedback } from "@/lib/settings-feedback";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { updateAppSettingsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -104,12 +105,11 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             </p>
           </div>
 
-          <button
+          <PendingSubmitButton
             className="inline-flex items-center justify-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 sm:col-span-2 sm:w-fit"
-            type="submit"
-          >
-            Save settings
-          </button>
+            idleLabel="Save settings"
+            pendingLabel="Saving..."
+          />
         </form>
       </ShellCard>
     </main>

@@ -14,7 +14,7 @@ import {
   createPublicBookingSubmissionInputSchema,
   type PublicBookingSubmissionInput
 } from "@boat/validation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { submitPublicBooking } from "./actions";
 import {
@@ -134,7 +134,7 @@ function getAvailabilityTitle(availability: SlotAvailabilityStatus): string {
     return "Slot already occupied";
   }
 
-  return "Live availability check";
+  return "Availability could not be verified right now";
 }
 
 export function BookingForm({
@@ -161,11 +161,15 @@ export function BookingForm({
   const [email, setEmail] = useState("");
   const [phoneCountryCode, setPhoneCountryCode] = useState("+30");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [formRevision, setFormRevision] = useState(0);
+  const [feedbackRevision, setFeedbackRevision] = useState(0);
   const [slotAvailability, setSlotAvailability] = useState<SlotAvailabilityStatus>({
     state: "idle",
     blockedBy: null,
     message: null
   });
+  const formRevisionRef = useRef(formRevision);
+  const slotAvailabilityRequestIdRef = useRef(0);
   const submissionSchema = createPublicBookingSubmissionInputSchema(
     seasonSettings
   );
@@ -175,16 +179,30 @@ export function BookingForm({
     selectedBoat && tripType
       ? getPriceForBoatAndTripType(selectedBoat.id, tripType, priceRules)
       : null;
-  const isLocked = submissionState.status === "success";
   const visibleTripTypes = selectedBoat?.supportedTripTypes ?? [];
   const isSubmitDisabled =
     !bookingPersistenceAvailable ||
-    isLocked ||
-    slotAvailability.state === "loading" ||
     (slotAvailability.state === "ready" && slotAvailability.blockedBy !== null);
+  const shouldShowSubmissionFeedback =
+    Boolean(submissionState.message) && feedbackRevision === formRevision;
+
+  useEffect(() => {
+    formRevisionRef.current = formRevision;
+  }, [formRevision]);
+
+  useEffect(() => {
+    if (submissionState.message) {
+      setFeedbackRevision(formRevisionRef.current);
+    }
+  }, [
+    submissionState.bookingId,
+    submissionState.message,
+    submissionState.status
+  ]);
 
   useEffect(() => {
     if (!boatId || !tripType || !date) {
+      slotAvailabilityRequestIdRef.current += 1;
       setSlotAvailability({
         state: "idle",
         blockedBy: null,
@@ -204,6 +222,8 @@ export function BookingForm({
     }
 
     const abortController = new AbortController();
+    const requestId = slotAvailabilityRequestIdRef.current + 1;
+    slotAvailabilityRequestIdRef.current = requestId;
     setSlotAvailability({
       state: "loading",
       blockedBy: null,
@@ -231,6 +251,10 @@ export function BookingForm({
           isBookable: boolean;
         };
 
+        if (abortController.signal.aborted || slotAvailabilityRequestIdRef.current !== requestId) {
+          return;
+        }
+
         setSlotAvailability({
           state: "ready",
           blockedBy: payload.blockedBy,
@@ -247,6 +271,11 @@ export function BookingForm({
         }
 
         console.error("Public slot availability lookup failed", error);
+
+        if (slotAvailabilityRequestIdRef.current !== requestId) {
+          return;
+        }
+
         setSlotAvailability({
           state: "error",
           blockedBy: null,
@@ -261,6 +290,19 @@ export function BookingForm({
       abortController.abort();
     };
   }, [boatId, bookingPersistenceAvailable, tripType, date]);
+
+  function markFormChanged() {
+    setFormRevision((currentRevision) => currentRevision + 1);
+  }
+
+  function resetSlotAvailabilityState() {
+    slotAvailabilityRequestIdRef.current += 1;
+    setSlotAvailability({
+      state: "idle",
+      blockedBy: null,
+      message: null
+    });
+  }
 
   function clearFieldError(field: FieldName) {
     setClientErrors((currentErrors) => {
@@ -277,7 +319,6 @@ export function BookingForm({
   function handleClientValidation(event: React.FormEvent<HTMLFormElement>) {
     if (
       !bookingPersistenceAvailable ||
-      slotAvailability.state === "loading" ||
       (slotAvailability.state === "ready" && slotAvailability.blockedBy !== null)
     ) {
       event.preventDefault();
@@ -334,7 +375,7 @@ export function BookingForm({
 
   return (
     <div className="space-y-5">
-      {submissionState.message ? (
+      {shouldShowSubmissionFeedback ? (
         <FeedbackBanner
           title={
             submissionState.status === "success"
@@ -371,73 +412,64 @@ export function BookingForm({
           </div>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {initialBoatId ? (
-              <div className="sm:col-span-2">
-                <label className="text-sm text-slate-600">
-                  Boat
-                  <input
-                    className={getInputClasses(Boolean(boatError), true)}
-                    disabled
-                    readOnly
-                    value={selectedBoat?.name ?? ""}
-                  />
-                </label>
-                <input name="boatId" type="hidden" value={boatId} />
-                {boatError ? (
-                  <p className="mt-1 text-sm text-rose-700">{boatError}</p>
-                ) : null}
-              </div>
-            ) : (
-              <label className="text-sm text-slate-600">
-                Boat
-                <select
-                  className={getInputClasses(Boolean(boatError), isLocked)}
-                  disabled={isLocked}
-                  name="boatId"
-                  onChange={(event) => {
-                    const nextBoatId = event.target.value;
-                    const nextBoat =
-                      boats.find((boat) => boat.id === nextBoatId) ?? null;
-                    const nextTripTypes = nextBoat?.supportedTripTypes ?? [];
+            <label className="text-sm text-slate-600">
+              Boat
+              <select
+                className={getInputClasses(Boolean(boatError), false)}
+                name="boatId"
+                onChange={(event) => {
+                  const nextBoatId = event.target.value;
+                  const nextBoat =
+                    boats.find((boat) => boat.id === nextBoatId) ?? null;
+                  const nextTripTypes = nextBoat?.supportedTripTypes ?? [];
 
-                    setBoatId(nextBoatId);
+                  setBoatId(nextBoatId);
 
-                    if (tripType && !nextTripTypes.includes(tripType)) {
-                      setTripType("");
-                    }
+                  if (tripType && !nextTripTypes.includes(tripType)) {
+                    setTripType("");
+                  }
 
-                    clearFieldError("boatId");
-                  }}
-                  required
-                  value={boatId}
-                >
-                  <option value="">Select a boat</option>
-                  {boats.map((boat) => (
-                    <option key={boat.id} value={boat.id}>
-                      {boat.name}
-                    </option>
-                  ))}
-                </select>
-                {boatError ? (
-                  <p className="mt-1 text-sm text-rose-700">{boatError}</p>
-                ) : null}
-              </label>
-            )}
+                  clearFieldError("boatId");
+                  clearFieldError("tripType");
+                  resetSlotAvailabilityState();
+                  markFormChanged();
+                }}
+                required
+                value={boatId}
+              >
+                <option value="">Select a boat</option>
+                {boats.map((boat) => (
+                  <option key={boat.id} value={boat.id}>
+                    {boat.name}
+                  </option>
+                ))}
+              </select>
+              {initialBoatId ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  This boat was preselected from the fleet page, but you can still change it here.
+                </p>
+              ) : null}
+              {boatError ? (
+                <p className="mt-1 text-sm text-rose-700">{boatError}</p>
+              ) : null}
+            </label>
 
             <label className="text-sm text-slate-600">
               Trip type
               <select
                 className={getInputClasses(
                   Boolean(tripTypeError),
-                  isLocked || !selectedBoat
+                  !selectedBoat
                 )}
-                disabled={isLocked || !selectedBoat}
+                disabled={!selectedBoat}
                 name="tripType"
                 onChange={(event) => {
                   setTripType(
                     event.target.value as PublicBookingSubmissionInput["tripType"] | ""
                   );
                   clearFieldError("tripType");
+                  resetSlotAvailabilityState();
+                  markFormChanged();
                 }}
                 required
                 value={tripType}
@@ -459,14 +491,15 @@ export function BookingForm({
             <label className="text-sm text-slate-600">
               Date
               <input
-                className={getInputClasses(Boolean(dateError), isLocked)}
-                disabled={isLocked}
+                className={getInputClasses(Boolean(dateError), false)}
                 max={maxDate}
                 min={minDate}
                 name="date"
                 onChange={(event) => {
                   setDate(event.target.value);
                   clearFieldError("date");
+                  resetSlotAvailabilityState();
+                  markFormChanged();
                 }}
                 required
                 type="date"
@@ -496,12 +529,12 @@ export function BookingForm({
             <label className="text-sm text-slate-600">
               Full name
               <input
-                className={getInputClasses(Boolean(fullNameError), isLocked)}
-                disabled={isLocked}
+                className={getInputClasses(Boolean(fullNameError), false)}
                 name="fullName"
                 onChange={(event) => {
                   setFullName(event.target.value);
                   clearFieldError("fullName");
+                  markFormChanged();
                 }}
                 placeholder="Guest full name"
                 required
@@ -515,12 +548,12 @@ export function BookingForm({
             <label className="text-sm text-slate-600">
               Email
               <input
-                className={getInputClasses(Boolean(emailError), isLocked)}
-                disabled={isLocked}
+                className={getInputClasses(Boolean(emailError), false)}
                 name="email"
                 onChange={(event) => {
                   setEmail(event.target.value);
                   clearFieldError("email");
+                  markFormChanged();
                 }}
                 placeholder="guest@example.com"
                 required
@@ -535,12 +568,12 @@ export function BookingForm({
             <label className="text-sm text-slate-600">
               Phone country code
               <select
-                className={getInputClasses(Boolean(phoneCountryCodeError), isLocked)}
-                disabled={isLocked}
+                className={getInputClasses(Boolean(phoneCountryCodeError), false)}
                 name="phoneCountryCode"
                 onChange={(event) => {
                   setPhoneCountryCode(event.target.value);
                   clearFieldError("phoneCountryCode");
+                  markFormChanged();
                 }}
                 required
                 value={phoneCountryCode}
@@ -561,13 +594,13 @@ export function BookingForm({
             <label className="text-sm text-slate-600">
               Mobile / phone
               <input
-                className={getInputClasses(Boolean(phoneNumberError), isLocked)}
-                disabled={isLocked}
+                className={getInputClasses(Boolean(phoneNumberError), false)}
                 inputMode="tel"
                 name="phoneNumber"
                 onChange={(event) => {
                   setPhoneNumber(event.target.value);
                   clearFieldError("phoneNumber");
+                  markFormChanged();
                 }}
                 pattern="[0-9()\\-\\s]{6,24}"
                 placeholder="690 123 4567"

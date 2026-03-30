@@ -47,9 +47,9 @@ type SlotAvailabilityStatus =
     };
 
 const commonInputClasses =
-  "mt-1 w-full rounded-xl border px-3.5 py-3 text-slate-900 outline-none transition focus:border-slate-950";
+  "mt-1 w-full rounded-2xl border px-4 py-3.5 text-slate-900 outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-sky-100";
 const sectionClasses =
-  "rounded-2xl border border-slate-200 bg-slate-50/90 p-5 sm:p-6";
+  "rounded-[28px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_16px_45px_-30px_rgba(15,23,42,0.28)] sm:p-6";
 
 function getFieldError(
   field: FieldName,
@@ -72,7 +72,7 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
 
   return (
     <button
-      className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700 sm:w-auto"
+      className="inline-flex w-full items-center justify-center rounded-full bg-slate-950 px-5 py-3.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-700 sm:w-auto"
       disabled={disabled || pending}
       type="submit"
     >
@@ -395,7 +395,7 @@ export function BookingForm({
         </FeedbackBanner>
       ) : null}
 
-      <form action={formAction} className="space-y-5" onSubmit={handleClientValidation}>
+      <form action={formAction} className="space-y-6" onSubmit={handleClientValidation}>
         <section className={sectionClasses}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -403,7 +403,7 @@ export function BookingForm({
                 Trip details
               </h3>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Start with the boat, trip type, and date so the form can show pricing and live slot state.
+                Start with the boat, trip type, and date so the form can show price, slot state, and the right booking context.
               </p>
             </div>
             <Pill tone={selectedBoat ? "accent" : "neutral"}>
@@ -488,7 +488,7 @@ export function BookingForm({
               ) : null}
             </label>
 
-            <label className="text-sm text-slate-600">
+            <label className="text-sm text-slate-600 sm:col-span-2">
               Date
               <input
                 className={getInputClasses(Boolean(dateError), false)}
@@ -614,7 +614,7 @@ export function BookingForm({
           </div>
         </section>
 
-        <section className="rounded-[28px] bg-slate-950 p-6 text-white shadow-[0_24px_60px_-32px_rgba(15,23,42,0.65)]">
+        <section className="overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,#0f172a_0%,#164e63_100%)] p-6 text-white shadow-[0_28px_70px_-34px_rgba(15,23,42,0.72)]">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
@@ -629,7 +629,7 @@ export function BookingForm({
                   : "Select a boat and trip type"}
               </h3>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">
-                Price display is live from the saved pricing matrix. Final confirmation still happens manually after the team reviews the request.
+                Price display is live from the saved pricing matrix. The amount updates as the guest changes boat and trip type.
               </p>
             </div>
 
@@ -661,18 +661,31 @@ export function BookingForm({
           </FeedbackBanner>
         )}
 
-        <FeedbackBanner title="Pending confirmation" tone="info">
-          Payment remains mock-only in this step. Submitting the form creates a real pending booking request and reserves the slot until the team reviews it.
-        </FeedbackBanner>
+        <section className="grid gap-4 lg:grid-cols-[1fr_0.92fr]">
+          <FeedbackBanner title="Pending confirmation" tone="info">
+            Payment remains mock-only in this step. Submitting the form creates a real pending booking request and reserves the slot until the team reviews it.
+          </FeedbackBanner>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_16px_45px_-30px_rgba(15,23,42,0.28)]">
+            <p className="text-sm font-semibold text-slate-900">
+              Before you submit
+            </p>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
+              <li>1. Review the selected boat, trip type, and date.</li>
+              <li>2. Check the live slot-status banner above the button.</li>
+              <li>3. Use a reachable email and phone number for confirmation.</li>
+            </ul>
+          </div>
+        </section>
+
+        <div className="rounded-[28px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_16px_45px_-30px_rgba(15,23,42,0.28)]">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-900">
+              <p className="text-base font-semibold text-slate-900">
                 Ready to submit?
               </p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                The team will review pending requests before confirming the booking.
+                The team will review pending requests before confirming the booking. You can still change the selection above until you submit.
               </p>
             </div>
             <SubmitButton disabled={isSubmitDisabled} />
